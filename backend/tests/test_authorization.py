@@ -39,7 +39,7 @@ class InvoiceRepo:
     def list(self, *args):
         return []
 
-    def save_status(self, organization_id, invoice_id, status):
+    def save_status(self, organization_id, invoice_id, status, *, commit=True):
         return SimpleNamespace(status=status)
 
 
@@ -50,9 +50,12 @@ class PaymentRepo:
     def list_for_invoice(self, organization_id, invoice_id):
         return []
 
-    def create(self, payment):
+    def create(self, payment, *, commit=True):
         self.saved.append(payment)
         return payment
+
+    def commit(self):
+        return None
 
 
 def tenant():

@@ -32,9 +32,28 @@ def bootstrap_account(
     if profile is None:
         profile = ProfileModel(id=user.user_id, full_name=None)
         db.add(profile)
-    existing = db.query(OrganizationMemberModel).filter_by(user_id=user.user_id).first()
-    if existing:
-        return {"organization_id": str(existing.organization_id), "created": False}
+    existing_memberships = (
+        db.query(OrganizationMemberModel)
+        .filter_by(user_id=user.user_id)
+        .order_by(OrganizationMemberModel.created_at)
+        .limit(20)
+        .all()
+    )
+    if existing_memberships:
+        active_membership = next(
+            (
+                item
+                for item in existing_memberships
+                if profile.active_organization_id == item.organization_id
+            ),
+            None,
+        )
+        if active_membership is None and len(existing_memberships) == 1:
+            active_membership = existing_memberships[0]
+            profile.active_organization_id = active_membership.organization_id
+            db.commit()
+        selected_membership = active_membership or existing_memberships[0]
+        return {"organization_id": str(selected_membership.organization_id), "created": False}
     slug_base = re.sub(r"[^a-z0-9]+", "-", payload.business_name.lower()).strip("-") or "workspace"
     organization = OrganizationModel(
         name=payload.business_name,
@@ -48,5 +67,6 @@ def bootstrap_account(
     db.add(
         OrganizationMemberModel(organization_id=organization.id, user_id=user.user_id, role="owner")
     )
+    profile.active_organization_id = organization.id
     db.commit()
     return {"organization_id": str(organization.id), "created": True}

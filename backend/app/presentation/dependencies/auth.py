@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.infrastructure.auth.jwt_verifier import SupabaseJwtVerifier
-from app.infrastructure.database.models import OrganizationMemberModel
+from app.infrastructure.database.models import OrganizationMemberModel, ProfileModel
 from app.infrastructure.database.session import get_db
 
 bearer = HTTPBearer(auto_error=False)
@@ -51,7 +51,6 @@ class Tenant:
 def get_tenant(
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-    organization_id: str | None = Header(default=None, alias="X-Organization-ID"),
 ) -> Tenant:
     memberships = db.scalars(
         select(OrganizationMemberModel)
@@ -63,27 +62,19 @@ def get_tenant(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="No organization membership found"
         )
-    if organization_id is not None:
-        try:
-            selected_id = UUID(organization_id)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization ID"
-            ) from exc
-        membership = next(
-            (item for item in memberships if item.organization_id == selected_id), None
-        )
-        if membership is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Organization access denied"
-            )
-    elif len(memberships) > 1:
+    profile = db.get(ProfileModel, user.user_id)
+    active_id = profile.active_organization_id if profile else None
+    membership = next((item for item in memberships if item.organization_id == active_id), None)
+    if membership is None and len(memberships) == 1:
+        membership = memberships[0]
+        if profile is not None:
+            profile.active_organization_id = membership.organization_id
+            db.commit()
+    elif membership is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Organization-ID is required when user belongs to multiple organizations",
+            detail="Active organization is not set; select one before continuing",
         )
-    else:
-        membership = memberships[0]
     return Tenant(
         user_id=user.user_id, organization_id=membership.organization_id, role=membership.role
     )

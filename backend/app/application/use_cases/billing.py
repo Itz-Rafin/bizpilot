@@ -40,7 +40,10 @@ class BillingUseCases:
             raise ValueError(f"Payments cannot be recorded against a {invoice.status} invoice")
         existing = self.payments.list_for_invoice(tenant.organization_id, invoice_id)
         payment_balance(invoice.total, [*existing, payment])
-        saved = self.payments.create(payment)
+        saved = self.payments.create(payment, commit=False)
         new_status = status_after_payment(invoice.total, [*existing, payment])
-        self.invoices.save_status(tenant.organization_id, invoice_id, new_status.value)
+        self.invoices.save_status(
+            tenant.organization_id, invoice_id, new_status.value, commit=False
+        )
+        self.payments.commit()
         return saved

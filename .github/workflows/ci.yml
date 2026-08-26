@@ -13,6 +13,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://placeholder:placeholder@localhost/placeholder
       SUPABASE_URL: https://cmrjhjtpdtcoduximxkg.supabase.co
       SUPABASE_JWT_SECRET: test-only-secret
+      SUPABASE_JWT_AUDIENCE: authenticated
     defaults:
       run:
         working-directory: backend

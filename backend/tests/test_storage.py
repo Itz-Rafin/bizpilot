@@ -64,3 +64,23 @@ def test_oversized_upload_is_rejected():
         storage().upload(
             UUID(int=1), "large.pdf", b"%PDF-" + b"x" * (5 * 1024 * 1024 + 1), "application/pdf"
         )
+
+
+def test_storage_never_overwrites_and_keeps_roots_distinct():
+    client = FakeClient()
+    adapter = SupabaseStorage(client, "bizpilot-assets")
+    path_a = adapter.upload(
+        UUID("00000000-0000-0000-0000-000000000001"),
+        "logo.png",
+        b"\\x89PNG\\r\\n\\x1a\\nvalid",
+        "image/png",
+    )
+    path_b = adapter.upload(
+        UUID("00000000-0000-0000-0000-000000000002"),
+        "logo.png",
+        b"\\x89PNG\\r\\n\\x1a\\nvalid",
+        "image/png",
+    )
+    assert path_a != path_b
+    assert path_a.split("/", 1)[0] != path_b.split("/", 1)[0]
+    assert all(call[2]["upsert"] == "false" for call in client.storage.bucket.calls)

@@ -20,7 +20,8 @@ export default function Home() {
   const [active, setActive] = useState("Overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [workspace, setWorkspace] = useState<{ organization: { name: string; currency: string }; profile: { full_name: string | null } | null; role: string } | null>(null);
+  const [workspace, setWorkspace] = useState<{ organization: { id: string; name: string; currency: string } | null; profile: { full_name: string | null } | null; role: string | null; active_organization_id: string | null; organizations: Array<{ id: string; name: string; role: string }> } | null>(null);
+  const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
@@ -44,9 +45,12 @@ export default function Home() {
       try {
         const supabase = createClient();
         const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+        const baseApi = createApi(session?.access_token);
+        const contextData = await baseApi.workspace.me();
+        const selectedOrganizationId = contextData.active_organization_id;
         const api = createApi(session?.access_token);
-        const [contextData, metricData, invoiceData, customerData] = await Promise.all([api.workspace.me(), api.dashboard.metrics(), api.invoices.list(), api.customers.list()]);
-        if (!ignore) { setWorkspace(contextData); setMetrics(metricData); setInvoices(invoiceData); setCustomers(customerData); }
+        const [metricData, invoiceData, customerData] = await Promise.all([api.dashboard.metrics(), api.invoices.list(), api.customers.list()]);
+        if (!ignore) { setWorkspace(contextData); setActiveOrganizationId(selectedOrganizationId); setMetrics(metricData); setInvoices(invoiceData); setCustomers(customerData); }
       } catch (cause) {
         if (!ignore) setError(cause instanceof Error ? cause.message : "Unable to load workspace data");
       } finally { if (!ignore) setLoading(false); }
@@ -54,6 +58,14 @@ export default function Home() {
     load();
     return () => { ignore = true; };
   }, []);
+
+  async function switchOrganization(organizationId: string) {
+    const supabase = createClient();
+    const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+    await createApi(session?.access_token).workspace.setActive(organizationId);
+    setActiveOrganizationId(organizationId);
+    window.location.reload();
+  }
 
   async function logout() {
     const supabase = createClient();
@@ -75,7 +87,7 @@ export default function Home() {
   return <div className="min-h-screen bg-[#f6f8fb] text-[#17202a]">
     <aside className={`fixed inset-y-0 left-0 z-30 w-64 border-r border-[#e7ebf0] bg-white px-5 py-6 transition-transform lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex items-center justify-between px-2"><div><div className="text-xl font-bold tracking-tight">Biz<span className="text-[#2557d6]">Pilot</span></div><div className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-[#8993a2]">Business workspace</div></div><button className="lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20}/></button></div>
-      <div className="mt-10 rounded-xl bg-[#f4f6fb] p-3"><div className="text-xs font-semibold uppercase tracking-wider text-[#8993a2]">Workspace</div><div className="mt-2 flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-[#2557d6] text-xs font-bold text-white">{(workspace?.organization.name ?? "BP").slice(0, 2).toUpperCase()}</div><div><div className="text-sm font-semibold">{workspace?.organization.name ?? "Loading workspace…"}</div><div className="text-xs text-[#8993a2]">{workspace?.role ?? "Workspace"}</div></div><ChevronDown className="ml-auto text-[#8993a2]" size={15}/></div></div>
+      <div className="mt-10 rounded-xl bg-[#f4f6fb] p-3"><label className="text-xs font-semibold uppercase tracking-wider text-[#8993a2]" htmlFor="organization-switcher">Workspace</label><select id="organization-switcher" value={activeOrganizationId ?? ""} onChange={(event) => switchOrganization(event.target.value)} className="mt-2 w-full rounded-lg border-0 bg-transparent px-0 text-sm font-semibold outline-none"><option value="" disabled>Select organization</option>{workspace?.organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name} · {organization.role}</option>)}</select></div>
       <nav className="mt-8 space-y-1" aria-label="Primary navigation">{navigation.map(([label, Icon]) => <Link key={label} href={label === "Overview" ? "/" : `/${label.toLowerCase()}`} onClick={() => { setActive(label); setMobileOpen(false); }} className={`focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${active === label ? "bg-[#e9efff] text-[#2557d6]" : "text-[#687485] hover:bg-[#f6f8fb] hover:text-[#17202a]"}`}><Icon size={18} strokeWidth={1.8}/>{label}</Link>)}</nav>
       <div className="absolute bottom-6 left-5 right-5 rounded-xl border border-[#e7ebf0] p-3"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-[#dce4f7] text-xs font-bold text-[#2557d6]">{(workspace?.profile?.full_name ?? "User").slice(0, 2).toUpperCase()}</div><div className="min-w-0"><div className="truncate text-sm font-semibold">{workspace?.profile?.full_name ?? "Workspace user"}</div><div className="truncate text-xs text-[#8993a2]">{workspace?.role ?? "Member"}</div></div><Settings className="ml-auto text-[#8993a2]" size={16}/></div></div>
     </aside>

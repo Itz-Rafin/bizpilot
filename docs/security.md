@@ -2,7 +2,7 @@
 
 ## Tenant isolation
 
-The authenticated user is derived from the Supabase JWT, never from an ID submitted by the browser. FastAPI resolves the first organization membership for the user and passes a `Tenant` context into the application layer. Repository queries include both the authenticated organization ID and requested record ID, so object-ID manipulation returns a not-found result rather than another tenant's record.
+The authenticated user is derived from the Supabase JWT, never from an ID submitted by the browser. The profile stores `active_organization_id`; the authenticated user can change it only through the backend after membership verification, and multi-organization users without an active selection fail closed. FastAPI derives every tenant context from that persisted value and passes a `Tenant` context into the application layer. Repository queries include both the authenticated organization ID and requested record ID, so object-ID manipulation returns a not-found result rather than another tenant's record.
 
 Supabase RLS is enabled on every organization-owned BizPilot table. The policies use security-definer membership functions in the isolated `bizpilot` schema. The frontend does not query BizPilot tables directly; the security hardening migration revokes direct table privileges from `anon` and `authenticated` and retains database access for the backend service role.
 
@@ -12,7 +12,7 @@ Owner and admin roles are required for organization settings and membership admi
 
 ## Monetary integrity
 
-The domain uses `Decimal` and PostgreSQL `numeric(12,2)` for money. Invoice totals are recalculated on the backend from validated line items. Payments are rejected when the cumulative amount would exceed the invoice total.
+The domain uses `Decimal` and PostgreSQL `numeric(12,2)` for money. Invoice totals are recalculated on the backend from validated line items. Payments are rejected when the cumulative amount would exceed the invoice total. Payment recording locks the tenant-scoped invoice row, stages the payment and status change, and commits once after both validations complete.
 
 ## Secret handling
 
@@ -28,4 +28,4 @@ Files must be uploaded under `<organization_id>/<generated-name>-<safe-filename>
 
 ## JWT validation
 
-The backend accepts only HS256 Supabase user tokens whose signature, expiry, `sub`, configured audience, and project issuer validate successfully. The audience defaults to `authenticated` and is configurable through `SUPABASE_JWT_AUDIENCE`.
+The backend accepts only HS256 Supabase user tokens whose signature, expiry, `sub`, configured audience, and project issuer validate successfully. The audience defaults to `authenticated` and is configurable through `SUPABASE_JWT_AUDIENCE`. CI sets this value explicitly; all verification failures fail closed.

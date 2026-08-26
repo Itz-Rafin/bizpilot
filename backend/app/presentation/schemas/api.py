@@ -201,3 +201,45 @@ class ActivityRead(ORMModel):
     entity_id: UUID | None = None
     metadata_json: dict = {}
     created_at: datetime
+
+
+class OrganizationSummary(BaseModel):
+    id: UUID
+    name: str
+    role: str
+
+
+class OrganizationContextRead(ORMModel):
+    id: UUID
+    name: str
+    currency: str
+    timezone: str
+
+
+class ProfileContextRead(ORMModel):
+    id: UUID
+    full_name: str | None = None
+    avatar_url: str | None = None
+
+
+class WorkspaceContext(BaseModel):
+    organization: OrganizationContextRead | None = None
+    profile: ProfileContextRead | None = None
+    role: str | None = None
+    active_organization_id: UUID | None = None
+    organizations: list[OrganizationSummary]
+
+
+class ActiveOrganizationRequest(BaseModel):
+    organization_id: UUID
+
+
+class ActiveOrganizationResponse(BaseModel):
+    active_organization_id: UUID
+
+
+class TeamMemberRead(ORMModel):
+    user_id: UUID
+    organization_id: UUID
+    role: str
+    created_at: datetime

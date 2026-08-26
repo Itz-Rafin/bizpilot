@@ -163,6 +163,14 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
             .where(InvoiceModel.organization_id == organization_id, InvoiceModel.id == invoice_id)
         )
 
+    def lock_for_payment(self, organization_id, invoice_id):
+        return self.session.scalar(
+            select(InvoiceModel)
+            .options(selectinload(InvoiceModel.items))
+            .where(InvoiceModel.organization_id == organization_id, InvoiceModel.id == invoice_id)
+            .with_for_update()
+        )
+
     def list(self, organization_id, status, search, offset, limit):
         query = select(InvoiceModel).where(InvoiceModel.organization_id == organization_id)
         if status:
@@ -173,12 +181,15 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
             query.order_by(InvoiceModel.issue_date.desc()).offset(offset).limit(limit)
         ).all()
 
-    def save_status(self, organization_id, invoice_id, status):
+    def save_status(self, organization_id, invoice_id, status, *, commit=True):
         item = self.get(organization_id, invoice_id)
         if item is None:
             return None
         item.status = status
-        self.session.commit()
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
         self.session.refresh(item)
         return item
 
@@ -247,7 +258,7 @@ class SqlAlchemyPaymentRepository(PaymentRepository):
             for row in rows
         ]
 
-    def create(self, payment: Payment):
+    def create(self, payment: Payment, *, commit=True):
         model = PaymentModel(
             organization_id=UUID(payment.organization_id),
             invoice_id=UUID(payment.invoice_id),
@@ -258,9 +269,15 @@ class SqlAlchemyPaymentRepository(PaymentRepository):
             notes=payment.notes,
         )
         self.session.add(model)
-        self.session.commit()
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
         self.session.refresh(model)
         return model
+
+    def commit(self):
+        self.session.commit()
 
 
 class SqlAlchemyDashboardRepository(DashboardRepository):
