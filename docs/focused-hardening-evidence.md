@@ -69,3 +69,10 @@ The Supabase security advisor reports one remaining platform-level warning: the 
 The remaining database advisor warning requires a Supabase platform Postgres upgrade and should be scheduled through the Supabase project controls rather than bundled into application SQL. A production deployment must provide a real `SUPABASE_JWT_SECRET`, explicitly configured `SUPABASE_JWT_AUDIENCE`, restricted CORS origins, a production database connection, and the backend-only service-role credential through the deployment secret manager. Docker images were not built in this environment because the Docker executable is unavailable. A true authenticated-role, two-user RLS integration test remains a deployment/branch validation item; it should run against an isolated Supabase branch with disposable test identities and rollback/cleanup controls, not against real user accounts.
 
 [1]: https://supabase.com/docs/guides/platform/upgrading "Supabase database upgrades"
+
+
+## Final no-cost decision
+
+No disposable Supabase branch was created because the available branch estimate was non-zero and the project budget is strictly zero. No test users, organizations, records, storage objects, or policy changes were created in the main Supabase project. The live authenticated-role RLS test remains the single outstanding validation item. The complete procedure for a later free isolated environment is documented in [the security manual procedure](security.md#manual-authenticated-two-user-rls-procedure).
+
+The final status is therefore: application-level tenant isolation **verified**; FastAPI authorization **verified**; JWT validation **verified**; repository tenant scoping **verified**; RLS policy structure **verified**; storage policy structure **verified**; live authenticated-role RLS **not executed due to the no-cost safety constraint**.
