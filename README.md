@@ -76,7 +76,7 @@ The frontend and backend are separate services. Hosted Supabase is not container
 
 ## Database and RLS
 
-The migration [`supabase/migrations/0001_bizpilot_foundation.sql`](supabase/migrations/0001_bizpilot_foundation.sql) creates only the `bizpilot` schema and uses `create ... if not exists`, without dropping tables. It defines normalized tables, foreign keys, numeric monetary columns, indexes, membership helper functions, RLS policies, and grants. Do not seed demo data into production accounts. Development seed data should be run only against a dedicated development project or branch.
+The migrations [`supabase/migrations/0001_bizpilot_foundation.sql`](supabase/migrations/0001_bizpilot_foundation.sql), [`0002_bizpilot_security_hardening.sql`](supabase/migrations/0002_bizpilot_security_hardening.sql), and [`0003_bizpilot_storage.sql`](supabase/migrations/0003_bizpilot_storage.sql) create only the dedicated `bizpilot` schema, harden direct table privileges, and add a private `bizpilot-assets` bucket with user-scoped object policies. They use `create ... if not exists` or conflict-safe inserts and do not drop tables or delete unrelated data. The schema defines normalized tables, foreign keys, numeric monetary columns, indexes, membership helper functions, RLS policies, and storage boundaries. Do not seed demo data into production accounts. Development seed data should be run only against a dedicated development project or branch.
 
 ## API security model
 

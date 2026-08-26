@@ -20,8 +20,10 @@ export default function LoginPage() {
     if (!supabase) { setMessage("Supabase is not configured. Add the public URL and publishable key to the frontend environment."); setBusy(false); return; }
     const result = mode === "login" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
     if (result.error) setMessage(result.error.message);
-    else if (mode === "signup") setMessage("Account created. Check your email if verification is enabled, then sign in.");
-    else router.push("/");
+    else if (mode === "signup") {
+      if (result.data.session) router.push("/onboarding");
+      else setMessage("Account created. Check your email if verification is enabled, then sign in.");
+    } else router.push("/");
     setBusy(false);
   }
 
