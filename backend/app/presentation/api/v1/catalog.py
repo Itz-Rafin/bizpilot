@@ -91,3 +91,45 @@ def archive_service(
     db.commit()
     db.refresh(item)
     return item
+
+
+@products_router.patch("/{product_id}", response_model=ProductRead)
+def update_product(
+    product_id: UUID,
+    payload: ProductCreate,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    item = db.scalar(
+        select(ProductModel).where(
+            ProductModel.id == product_id, ProductModel.organization_id == tenant.organization_id
+        )
+    )
+    if item is None:
+        raise HTTPException(404, "Product not found")
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@services_router.patch("/{service_id}", response_model=ServiceRead)
+def update_service(
+    service_id: UUID,
+    payload: ServiceCreate,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    item = db.scalar(
+        select(ServiceModel).where(
+            ServiceModel.id == service_id, ServiceModel.organization_id == tenant.organization_id
+        )
+    )
+    if item is None:
+        raise HTTPException(404, "Service not found")
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item

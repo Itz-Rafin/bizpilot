@@ -62,7 +62,10 @@ def create_invoice(
         discount=payload.discount,
         notes=payload.notes,
     )
-    return cases.create_invoice(tenant, invoice)
+    try:
+        return cases.create_invoice(tenant, invoice)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead)

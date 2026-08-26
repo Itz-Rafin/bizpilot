@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 FORBIDDEN = ("fastapi", "sqlalchemy", "supabase", "postgres", "httpx")
 
 
@@ -9,4 +8,6 @@ def test_domain_has_no_framework_or_infrastructure_imports():
     for path in domain_root.rglob("*.py"):
         source = path.read_text()
         lowered = source.lower()
-        assert not any(f"import {name}" in lowered or f"from {name}" in lowered for name in FORBIDDEN), path
+        assert not any(
+            f"import {name}" in lowered or f"from {name}" in lowered for name in FORBIDDEN
+        ), path

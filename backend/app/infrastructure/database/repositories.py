@@ -19,6 +19,8 @@ from app.infrastructure.database.models import (
     InvoiceItemModel,
     InvoiceModel,
     PaymentModel,
+    ProductModel,
+    ServiceModel,
 )
 
 
@@ -93,6 +95,34 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         return f"INV-{current + 1:05d}"
 
     def create(self, invoice: Invoice):
+        organization_id = UUID(invoice.organization_id)
+        customer = self.session.scalar(
+            select(CustomerModel).where(
+                CustomerModel.id == UUID(invoice.customer_id),
+                CustomerModel.organization_id == organization_id,
+            )
+        )
+        if customer is None:
+            raise ValueError("Customer does not belong to the current organization")
+        for item in invoice.items:
+            if item.product_id:
+                product = self.session.scalar(
+                    select(ProductModel).where(
+                        ProductModel.id == UUID(item.product_id),
+                        ProductModel.organization_id == organization_id,
+                    )
+                )
+                if product is None:
+                    raise ValueError("Product does not belong to the current organization")
+            if item.service_id:
+                service = self.session.scalar(
+                    select(ServiceModel).where(
+                        ServiceModel.id == UUID(item.service_id),
+                        ServiceModel.organization_id == organization_id,
+                    )
+                )
+                if service is None:
+                    raise ValueError("Service does not belong to the current organization")
         model = InvoiceModel(
             organization_id=UUID(invoice.organization_id),
             customer_id=UUID(invoice.customer_id),
