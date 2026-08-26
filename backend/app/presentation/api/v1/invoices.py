@@ -115,3 +115,52 @@ def cancel_invoice(
     if item is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return item
+
+
+@router.patch("/{invoice_id}", response_model=InvoiceRead)
+def update_draft_invoice(
+    invoice_id: UUID,
+    payload: InvoiceCreate,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    repository = SqlAlchemyInvoiceRepository(db)
+    existing = repository.get(tenant.organization_id, invoice_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    invoice = Invoice(
+        organization_id=str(tenant.organization_id),
+        customer_id=str(payload.customer_id),
+        invoice_number=existing.invoice_number,
+        issue_date=payload.issue_date,
+        due_date=payload.due_date,
+        items=[
+            InvoiceItem(
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                product_id=str(item.product_id) if item.product_id else None,
+                service_id=str(item.service_id) if item.service_id else None,
+            )
+            for item in payload.items
+        ],
+        tax_rate=payload.tax_rate,
+        discount=payload.discount,
+        notes=payload.notes,
+    )
+    try:
+        return repository.update_draft(tenant.organization_id, invoice_id, invoice)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_draft_invoice(
+    invoice_id: UUID, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
+):
+    try:
+        deleted = SqlAlchemyInvoiceRepository(db).delete_draft(tenant.organization_id, invoice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Invoice not found")

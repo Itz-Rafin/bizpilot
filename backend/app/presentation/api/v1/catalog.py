@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.application.use_cases.operations import CatalogUseCases
+from app.domain.ports.repositories import TenantContext
 from app.infrastructure.database.models import ProductModel, ServiceModel
+from app.infrastructure.database.operations_repositories import SqlAlchemyCatalogRepository
 from app.infrastructure.database.session import get_db
 from app.presentation.dependencies.auth import Tenant, get_tenant
 from app.presentation.schemas.api import ProductCreate, ProductRead, ServiceCreate, ServiceRead
@@ -13,24 +16,50 @@ products_router = APIRouter(prefix="/products", tags=["products"])
 services_router = APIRouter(prefix="/services", tags=["services"])
 
 
+def cases(db: Session = Depends(get_db)) -> CatalogUseCases:
+    return CatalogUseCases(SqlAlchemyCatalogRepository(db))
+
+
+def tenant_context(tenant: Tenant) -> TenantContext:
+    return TenantContext(
+        user_id=tenant.user_id, organization_id=tenant.organization_id, role=tenant.role
+    )
+
+
 @products_router.get("", response_model=list[ProductRead])
 def list_products(
-    search: str | None = None, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
+    search: str | None = None,
+    tenant: Tenant = Depends(get_tenant),
+    use_cases: CatalogUseCases = Depends(cases),
 ):
-    query = select(ProductModel).where(
-        ProductModel.organization_id == tenant.organization_id, ProductModel.status == "active"
-    )
-    if search:
-        query = query.where(ProductModel.name.ilike(f"%{search.strip()}%"))
-    return db.scalars(query.order_by(ProductModel.name).limit(100)).all()
+    return use_cases.list_products(tenant_context(tenant), search)
 
 
 @products_router.post("", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 def create_product(
-    payload: ProductCreate, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
+    payload: ProductCreate,
+    tenant: Tenant = Depends(get_tenant),
+    use_cases: CatalogUseCases = Depends(cases),
 ):
-    item = ProductModel(organization_id=tenant.organization_id, **payload.model_dump())
-    db.add(item)
+    return use_cases.create_product(tenant_context(tenant), payload.model_dump())
+
+
+@products_router.patch("/{product_id}", response_model=ProductRead)
+def update_product(
+    product_id: UUID,
+    payload: ProductCreate,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    item = db.scalar(
+        select(ProductModel).where(
+            ProductModel.id == product_id, ProductModel.organization_id == tenant.organization_id
+        )
+    )
+    if item is None:
+        raise HTTPException(404, "Product not found")
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
     db.commit()
     db.refresh(item)
     return item
@@ -55,63 +84,20 @@ def archive_product(
 
 @services_router.get("", response_model=list[ServiceRead])
 def list_services(
-    search: str | None = None, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
+    search: str | None = None,
+    tenant: Tenant = Depends(get_tenant),
+    use_cases: CatalogUseCases = Depends(cases),
 ):
-    query = select(ServiceModel).where(
-        ServiceModel.organization_id == tenant.organization_id, ServiceModel.status == "active"
-    )
-    if search:
-        query = query.where(ServiceModel.name.ilike(f"%{search.strip()}%"))
-    return db.scalars(query.order_by(ServiceModel.name).limit(100)).all()
+    return use_cases.list_services(tenant_context(tenant), search)
 
 
 @services_router.post("", response_model=ServiceRead, status_code=status.HTTP_201_CREATED)
 def create_service(
-    payload: ServiceCreate, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
-):
-    item = ServiceModel(organization_id=tenant.organization_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-@services_router.post("/{service_id}/archive", response_model=ServiceRead)
-def archive_service(
-    service_id: UUID, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
-):
-    item = db.scalar(
-        select(ServiceModel).where(
-            ServiceModel.id == service_id, ServiceModel.organization_id == tenant.organization_id
-        )
-    )
-    if item is None:
-        raise HTTPException(404, "Service not found")
-    item.status = "archived"
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-@products_router.patch("/{product_id}", response_model=ProductRead)
-def update_product(
-    product_id: UUID,
-    payload: ProductCreate,
+    payload: ServiceCreate,
     tenant: Tenant = Depends(get_tenant),
-    db: Session = Depends(get_db),
+    use_cases: CatalogUseCases = Depends(cases),
 ):
-    item = db.scalar(
-        select(ProductModel).where(
-            ProductModel.id == product_id, ProductModel.organization_id == tenant.organization_id
-        )
-    )
-    if item is None:
-        raise HTTPException(404, "Product not found")
-    for key, value in payload.model_dump().items():
-        setattr(item, key, value)
-    db.commit()
-    db.refresh(item)
-    return item
+    return use_cases.create_service(tenant_context(tenant), payload.model_dump())
 
 
 @services_router.patch("/{service_id}", response_model=ServiceRead)
@@ -130,6 +116,23 @@ def update_service(
         raise HTTPException(404, "Service not found")
     for key, value in payload.model_dump().items():
         setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@services_router.post("/{service_id}/archive", response_model=ServiceRead)
+def archive_service(
+    service_id: UUID, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
+):
+    item = db.scalar(
+        select(ServiceModel).where(
+            ServiceModel.id == service_id, ServiceModel.organization_id == tenant.organization_id
+        )
+    )
+    if item is None:
+        raise HTTPException(404, "Service not found")
+    item.status = "archived"
     db.commit()
     db.refresh(item)
     return item
