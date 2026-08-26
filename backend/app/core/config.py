@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,4 +24,18 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as exc:
+        missing = [
+            str(error["loc"][0]).upper() for error in exc.errors() if error.get("type") == "missing"
+        ]
+        if missing:
+            variables = ", ".join(sorted(set(missing)))
+            raise RuntimeError(
+                "BizPilot backend configuration is incomplete. "
+                f"Missing required environment variable(s): {variables}. "
+                "Copy backend/.env.example to backend/.env and fill in the values "
+                "before starting FastAPI."
+            ) from exc
+        raise
