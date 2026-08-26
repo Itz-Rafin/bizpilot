@@ -19,6 +19,8 @@ frontend/.env.local
 .env
 .env.*
 !.env.example
+!frontend/.env.local.example
+!backend/.env.example
 
 # IDE
 .vscode/
