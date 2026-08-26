@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+backend/.env
+
+# Node
+node_modules/
+.next/
+out/
+frontend/.env.local
+
+# Local tooling
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# generated
+coverage.xml
+htmlcov/

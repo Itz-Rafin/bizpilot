@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #17202a;
+  --muted: #687485;
+  --line: #e7ebf0;
+  --surface: #ffffff;
+  --wash: #f6f8fb;
+  --brand: #2557d6;
+  --brand-soft: #e9efff;
+  --success: #1c8c63;
+  --warning: #b97812;
+  --danger: #c94d4d;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--wash); }
+body { margin: 0; color: var(--ink); background: var(--wash); font-family: Arial, Helvetica, sans-serif; }
+button, input, select { font: inherit; }
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+}
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 24px rgba(26, 38, 57, 0.04); }
+.metric-value { letter-spacing: -0.04em; }
+.focus-ring:focus-visible { outline: 3px solid rgba(37, 87, 214, .28); outline-offset: 2px; }

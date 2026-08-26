@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+from typing import Protocol
+from uuid import UUID
+
+from app.domain.entities.billing import Invoice, Payment
+
+
+@dataclass(frozen=True, slots=True)
+class TenantContext:
+    user_id: UUID
+    organization_id: UUID
+    role: str
+
+
+class CustomerRepository(Protocol):
+    def list(
+        self, organization_id: UUID, search: str | None, offset: int, limit: int
+    ) -> Sequence[object]: ...
+    def get(self, organization_id: UUID, customer_id: UUID) -> object | None: ...
+    def create(self, organization_id: UUID, values: dict) -> object: ...
+    def update(self, organization_id: UUID, customer_id: UUID, values: dict) -> object | None: ...
+    def archive(self, organization_id: UUID, customer_id: UUID) -> bool: ...
+
+
+class InvoiceRepository(Protocol):
+    def next_number(self, organization_id: UUID) -> str: ...
+    def create(self, invoice: Invoice) -> object: ...
+    def get(self, organization_id: UUID, invoice_id: UUID) -> object | None: ...
+    def list(
+        self, organization_id: UUID, status: str | None, search: str | None, offset: int, limit: int
+    ) -> Sequence[object]: ...
+    def save_status(
+        self, organization_id: UUID, invoice_id: UUID, status: str
+    ) -> object | None: ...
+
+
+class PaymentRepository(Protocol):
+    def list_for_invoice(self, organization_id: UUID, invoice_id: UUID) -> Sequence[Payment]: ...
+    def create(self, payment: Payment) -> object: ...
+
+
+class DashboardRepository(Protocol):
+    def metrics(
+        self, organization_id: UUID, start: date, end: date
+    ) -> dict[str, Decimal | int | list]: ...
