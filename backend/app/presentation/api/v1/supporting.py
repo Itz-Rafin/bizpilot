@@ -10,12 +10,22 @@ from app.infrastructure.database.models import (
     NotificationModel,
     OrganizationMemberModel,
     OrganizationModel,
+    ProfileModel,
 )
 from app.infrastructure.database.session import get_db
 from app.presentation.dependencies.auth import Tenant, get_tenant, require_roles
 from app.presentation.schemas.api import ActivityRead, NotificationRead
 
 router = APIRouter(tags=["supporting systems"])
+
+
+@router.get("/me")
+def get_workspace_context(tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)):
+    organization = db.get(OrganizationModel, tenant.organization_id)
+    profile = db.get(ProfileModel, tenant.user_id)
+    if organization is None:
+        raise HTTPException(404, "Organization not found")
+    return {"organization": organization, "profile": profile, "role": tenant.role}
 
 
 @router.get("/notifications", response_model=list[NotificationRead])

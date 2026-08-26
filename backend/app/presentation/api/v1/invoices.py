@@ -84,7 +84,10 @@ def send_invoice(
     tenant: Tenant = Depends(get_tenant),
     cases: BillingUseCases = Depends(use_cases),
 ):
-    item = cases.send_invoice(tenant, invoice_id)
+    try:
+        item = cases.send_invoice(tenant, invoice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if item is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return item
@@ -111,7 +114,10 @@ def cancel_invoice(
     tenant: Tenant = Depends(get_tenant),
     cases: BillingUseCases = Depends(use_cases),
 ):
-    item = cases.cancel_invoice(tenant, invoice_id)
+    try:
+        item = cases.cancel_invoice(tenant, invoice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if item is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return item

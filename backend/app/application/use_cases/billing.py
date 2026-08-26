@@ -19,20 +19,28 @@ class BillingUseCases:
         invoice = self.invoices.get(tenant.organization_id, invoice_id)
         if invoice is None:
             return None
+        if invoice.status not in ("draft", "sent"):
+            raise ValueError("Only draft or sent invoices can be sent")
         return self.invoices.save_status(tenant.organization_id, invoice_id, "sent")
 
     def cancel_invoice(self, tenant: TenantContext, invoice_id: UUID):
         invoice = self.invoices.get(tenant.organization_id, invoice_id)
         if invoice is None:
             return None
+        if invoice.status == "paid":
+            raise ValueError("Paid invoices cannot be cancelled")
         return self.invoices.save_status(tenant.organization_id, invoice_id, "cancelled")
 
-    def record_payment(self, tenant: TenantContext, payment: Payment, invoice_total):
-        existing = self.payments.list_for_invoice(tenant.organization_id, UUID(payment.invoice_id))
-        payment_balance(invoice_total, [*existing, payment])
+    def record_payment(self, tenant: TenantContext, payment: Payment):
+        invoice_id = UUID(payment.invoice_id)
+        invoice = self.invoices.lock_for_payment(tenant.organization_id, invoice_id)
+        if invoice is None:
+            raise KeyError("Invoice not found")
+        if invoice.status in ("cancelled", "paid"):
+            raise ValueError(f"Payments cannot be recorded against a {invoice.status} invoice")
+        existing = self.payments.list_for_invoice(tenant.organization_id, invoice_id)
+        payment_balance(invoice.total, [*existing, payment])
         saved = self.payments.create(payment)
-        new_status = status_after_payment(invoice_total, [*existing, payment])
-        self.invoices.save_status(
-            tenant.organization_id, UUID(payment.invoice_id), new_status.value
-        )
+        new_status = status_after_payment(invoice.total, [*existing, payment])
+        self.invoices.save_status(tenant.organization_id, invoice_id, new_status.value)
         return saved

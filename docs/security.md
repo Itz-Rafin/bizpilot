@@ -21,3 +21,11 @@ Secrets are environment variables only. Service-role credentials are backend-onl
 ## Advisor result
 
 After migration, Supabase security advisors reported no remaining GraphQL table-exposure warnings. One platform-level warning remains: the selected project is running Postgres `17.4.1.069` and Supabase recommends upgrading to a patched version. This is a platform upgrade action rather than an application migration and was not performed automatically. Remediation is documented at [Supabase database upgrades](https://supabase.com/docs/guides/platform/upgrading). The performance advisor now reports only informational `unused_index` notices because the new tables have no workload yet; the indexes are intentionally retained for the documented tenant, date, and foreign-key query patterns.
+
+## Storage path convention
+
+Files must be uploaded under `<organization_id>/<generated-name>-<safe-filename>`. The storage adapter rejects path components, backslashes, unsupported MIME types, mismatched magic bytes, files larger than 5 MB, and overwrite requests. Supabase Storage policies call the security-definer membership function against the organization path segment, so users with access to one organization cannot use another organization’s path.
+
+## JWT validation
+
+The backend accepts only HS256 Supabase user tokens whose signature, expiry, `sub`, configured audience, and project issuer validate successfully. The audience defaults to `authenticated` and is configurable through `SUPABASE_JWT_AUDIENCE`.

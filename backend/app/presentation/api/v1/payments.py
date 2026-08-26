@@ -41,9 +41,6 @@ def record_payment(
     tenant: Tenant = Depends(get_tenant),
     cases: BillingUseCases = Depends(use_cases),
 ):
-    invoice = cases.invoices.get(tenant.organization_id, payload.invoice_id)
-    if invoice is None:
-        raise HTTPException(status_code=404, detail="Invoice not found")
     payment = Payment(
         invoice_id=str(payload.invoice_id),
         organization_id=str(tenant.organization_id),
@@ -54,6 +51,6 @@ def record_payment(
         notes=payload.notes,
     )
     try:
-        return cases.record_payment(tenant, payment, invoice.total)
+        return cases.record_payment(tenant, payment)
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

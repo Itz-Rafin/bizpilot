@@ -1,7 +1,8 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
+COPY --chown=node:node package*.json ./
+USER node
+RUN npm ci
+COPY --chown=node:node . .
 EXPOSE 3000
 CMD ["npm", "run", "dev"]

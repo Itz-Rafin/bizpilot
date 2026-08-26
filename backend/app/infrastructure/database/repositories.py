@@ -182,6 +182,46 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
         self.session.refresh(item)
         return item
 
+    def update_draft(self, organization_id, invoice_id, invoice: Invoice):
+        model = self.get(organization_id, invoice_id)
+        if model is None:
+            return None
+        if model.status != "draft":
+            raise ValueError("Only draft invoices can be edited")
+        model.customer_id = UUID(invoice.customer_id)
+        model.issue_date = invoice.issue_date
+        model.due_date = invoice.due_date
+        model.subtotal = invoice.subtotal
+        model.tax = invoice.tax
+        model.discount = invoice.discount
+        model.total = invoice.total
+        model.notes = invoice.notes
+        model.items.clear()
+        model.items = [
+            InvoiceItemModel(
+                product_id=UUID(item.product_id) if item.product_id else None,
+                service_id=UUID(item.service_id) if item.service_id else None,
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                total=item.total,
+            )
+            for item in invoice.items
+        ]
+        self.session.commit()
+        self.session.refresh(model)
+        return model
+
+    def delete_draft(self, organization_id, invoice_id):
+        model = self.get(organization_id, invoice_id)
+        if model is None:
+            return False
+        if model.status != "draft":
+            raise ValueError("Only draft invoices can be deleted")
+        self.session.delete(model)
+        self.session.commit()
+        return True
+
 
 class SqlAlchemyPaymentRepository(PaymentRepository):
     def __init__(self, session: Session):
@@ -271,43 +311,3 @@ class SqlAlchemyDashboardRepository(DashboardRepository):
             "customer_count": customer_count,
             "outstanding": outstanding,
         }
-
-    def update_draft(self, organization_id, invoice_id, invoice: Invoice):
-        model = self.get(organization_id, invoice_id)
-        if model is None:
-            return None
-        if model.status != "draft":
-            raise ValueError("Only draft invoices can be edited")
-        model.customer_id = UUID(invoice.customer_id)
-        model.issue_date = invoice.issue_date
-        model.due_date = invoice.due_date
-        model.subtotal = invoice.subtotal
-        model.tax = invoice.tax
-        model.discount = invoice.discount
-        model.total = invoice.total
-        model.notes = invoice.notes
-        model.items.clear()
-        model.items = [
-            InvoiceItemModel(
-                product_id=UUID(item.product_id) if item.product_id else None,
-                service_id=UUID(item.service_id) if item.service_id else None,
-                description=item.description,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                total=item.total,
-            )
-            for item in invoice.items
-        ]
-        self.session.commit()
-        self.session.refresh(model)
-        return model
-
-    def delete_draft(self, organization_id, invoice_id):
-        model = self.get(organization_id, invoice_id)
-        if model is None:
-            return False
-        if model.status != "draft":
-            raise ValueError("Only draft invoices can be deleted")
-        self.session.delete(model)
-        self.session.commit()
-        return True

@@ -17,6 +17,7 @@ export function createApi(accessToken?: string) {
   }
   return {
     auth: { bootstrap: (payload: { business_name: string; business_type: string; currency: string; timezone: string }) => request<{ organization_id: string; created: boolean }>("/auth/bootstrap", { method: "POST", body: JSON.stringify(payload) }) },
+    workspace: { me: () => request<{ organization: { name: string; currency: string; timezone: string }; profile: { full_name: string | null } | null; role: string }>("/me") },
     customers: { list: (search = "") => request<Customer[]>(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`), create: (payload: { name: string; email?: string; phone?: string; company?: string; address?: string; notes?: string }) => request<Customer>("/customers", { method: "POST", body: JSON.stringify(payload) }) },
     invoices: { list: () => request<Invoice[]>("/invoices") },
     products: { list: (search = "") => request<Product[]>(`/products${search ? `?search=${encodeURIComponent(search)}` : ""}`) },

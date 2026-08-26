@@ -37,6 +37,7 @@ class InvoiceRepository(Protocol):
     def save_status(
         self, organization_id: UUID, invoice_id: UUID, status: str
     ) -> object | None: ...
+    def lock_for_payment(self, organization_id: UUID, invoice_id: UUID) -> object | None: ...
 
 
 class PaymentRepository(Protocol):

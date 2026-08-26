@@ -24,7 +24,8 @@ class SupabaseJwtVerifier:
                 token,
                 self.settings.supabase_jwt_secret,
                 algorithms=["HS256"],
-                options={"verify_aud": False},
+                audience=self.settings.supabase_jwt_audience,
+                issuer=f"{self.settings.supabase_url.rstrip('/')}/auth/v1",
             )
             return VerifiedToken(user_id=UUID(payload["sub"]), email=payload.get("email"))
         except (JWTError, KeyError, ValueError) as exc:

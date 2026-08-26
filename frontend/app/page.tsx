@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Bell, ChevronDown, CircleDollarSign, FileText, LayoutDashboard, Menu, Plus, Receipt, Search, Settings, Users, X, type LucideIcon } from "lucide-react";
 import { createApi, type Customer, type DashboardMetrics, type Invoice } from "@/lib/api/client";
@@ -15,9 +16,11 @@ function money(value: string | number | undefined) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [active, setActive] = useState("Overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [workspace, setWorkspace] = useState<{ organization: { name: string; currency: string }; profile: { full_name: string | null } | null; role: string } | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
@@ -42,8 +45,8 @@ export default function Home() {
         const supabase = createClient();
         const session = supabase ? (await supabase.auth.getSession()).data.session : null;
         const api = createApi(session?.access_token);
-        const [metricData, invoiceData, customerData] = await Promise.all([api.dashboard.metrics(), api.invoices.list(), api.customers.list()]);
-        if (!ignore) { setMetrics(metricData); setInvoices(invoiceData); setCustomers(customerData); }
+        const [contextData, metricData, invoiceData, customerData] = await Promise.all([api.workspace.me(), api.dashboard.metrics(), api.invoices.list(), api.customers.list()]);
+        if (!ignore) { setWorkspace(contextData); setMetrics(metricData); setInvoices(invoiceData); setCustomers(customerData); }
       } catch (cause) {
         if (!ignore) setError(cause instanceof Error ? cause.message : "Unable to load workspace data");
       } finally { if (!ignore) setLoading(false); }
@@ -51,6 +54,12 @@ export default function Home() {
     load();
     return () => { ignore = true; };
   }, []);
+
+  async function logout() {
+    const supabase = createClient();
+    await supabase?.auth.signOut();
+    router.push("/login");
+  }
 
   async function addCustomer(event: React.FormEvent) {
     event.preventDefault();
@@ -66,12 +75,12 @@ export default function Home() {
   return <div className="min-h-screen bg-[#f6f8fb] text-[#17202a]">
     <aside className={`fixed inset-y-0 left-0 z-30 w-64 border-r border-[#e7ebf0] bg-white px-5 py-6 transition-transform lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex items-center justify-between px-2"><div><div className="text-xl font-bold tracking-tight">Biz<span className="text-[#2557d6]">Pilot</span></div><div className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-[#8993a2]">Business workspace</div></div><button className="lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20}/></button></div>
-      <div className="mt-10 rounded-xl bg-[#f4f6fb] p-3"><div className="text-xs font-semibold uppercase tracking-wider text-[#8993a2]">Workspace</div><div className="mt-2 flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-[#2557d6] text-xs font-bold text-white">AC</div><div><div className="text-sm font-semibold">Acme Creative</div><div className="text-xs text-[#8993a2]">Owner workspace</div></div><ChevronDown className="ml-auto text-[#8993a2]" size={15}/></div></div>
+      <div className="mt-10 rounded-xl bg-[#f4f6fb] p-3"><div className="text-xs font-semibold uppercase tracking-wider text-[#8993a2]">Workspace</div><div className="mt-2 flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-[#2557d6] text-xs font-bold text-white">{(workspace?.organization.name ?? "BP").slice(0, 2).toUpperCase()}</div><div><div className="text-sm font-semibold">{workspace?.organization.name ?? "Loading workspace…"}</div><div className="text-xs text-[#8993a2]">{workspace?.role ?? "Workspace"}</div></div><ChevronDown className="ml-auto text-[#8993a2]" size={15}/></div></div>
       <nav className="mt-8 space-y-1" aria-label="Primary navigation">{navigation.map(([label, Icon]) => <Link key={label} href={label === "Overview" ? "/" : `/${label.toLowerCase()}`} onClick={() => { setActive(label); setMobileOpen(false); }} className={`focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${active === label ? "bg-[#e9efff] text-[#2557d6]" : "text-[#687485] hover:bg-[#f6f8fb] hover:text-[#17202a]"}`}><Icon size={18} strokeWidth={1.8}/>{label}</Link>)}</nav>
-      <div className="absolute bottom-6 left-5 right-5 rounded-xl border border-[#e7ebf0] p-3"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-[#dce4f7] text-xs font-bold text-[#2557d6]">RA</div><div className="min-w-0"><div className="truncate text-sm font-semibold">Rafin Ahmed</div><div className="truncate text-xs text-[#8993a2]">Owner</div></div><Settings className="ml-auto text-[#8993a2]" size={16}/></div></div>
+      <div className="absolute bottom-6 left-5 right-5 rounded-xl border border-[#e7ebf0] p-3"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-[#dce4f7] text-xs font-bold text-[#2557d6]">{(workspace?.profile?.full_name ?? "User").slice(0, 2).toUpperCase()}</div><div className="min-w-0"><div className="truncate text-sm font-semibold">{workspace?.profile?.full_name ?? "Workspace user"}</div><div className="truncate text-xs text-[#8993a2]">{workspace?.role ?? "Member"}</div></div><Settings className="ml-auto text-[#8993a2]" size={16}/></div></div>
     </aside>
     {mobileOpen && <button aria-label="Close navigation overlay" className="fixed inset-0 z-20 bg-black/20 lg:hidden" onClick={() => setMobileOpen(false)}/>} 
-    <main className="lg:pl-64"><header className="flex h-20 items-center justify-between border-b border-[#e7ebf0] bg-white px-5 sm:px-8"><div className="flex items-center gap-3"><button className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21}/></button><div><div className="text-sm text-[#8993a2]">Tuesday, August 26, 2026</div><h1 className="text-xl font-semibold tracking-tight">Good morning, Rafin</h1></div></div><div className="flex items-center gap-2"><button className="focus-ring rounded-lg p-2.5 text-[#687485] hover:bg-[#f6f8fb]" aria-label="Notifications"><Bell size={19}/><span className="absolute ml-3 mt-[-22px] h-2 w-2 rounded-full bg-[#c94d4d]"/></button><div className="ml-2 hidden h-8 w-px bg-[#e7ebf0] sm:block"/><button className="focus-ring flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#f6f8fb]"><div className="grid h-8 w-8 place-items-center rounded-full bg-[#dce4f7] text-xs font-bold text-[#2557d6]">RA</div><ChevronDown size={15} className="text-[#8993a2]"/></button></div></header>
+    <main className="lg:pl-64"><header className="flex h-20 items-center justify-between border-b border-[#e7ebf0] bg-white px-5 sm:px-8"><div className="flex items-center gap-3"><button className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={21}/></button><div><div className="text-sm text-[#8993a2]">Tuesday, August 26, 2026</div><h1 className="text-xl font-semibold tracking-tight">Good morning, {workspace?.profile?.full_name?.split(" ")[0] ?? "there"}</h1></div></div><div className="flex items-center gap-2"><button className="focus-ring rounded-lg p-2.5 text-[#687485] hover:bg-[#f6f8fb]" aria-label="Notifications"><Bell size={19}/><span className="absolute ml-3 mt-[-22px] h-2 w-2 rounded-full bg-[#c94d4d]"/></button><div className="ml-2 hidden h-8 w-px bg-[#e7ebf0] sm:block"/><button onClick={logout} className="focus-ring flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#f6f8fb]" aria-label="Sign out"><div className="grid h-8 w-8 place-items-center rounded-full bg-[#dce4f7] text-xs font-bold text-[#2557d6]">{(workspace?.profile?.full_name ?? "User").slice(0, 2).toUpperCase()}</div><ChevronDown size={15} className="text-[#8993a2]"/></button></div></header>
       <div className="mx-auto max-w-[1440px] p-5 sm:p-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><div className="text-sm font-semibold text-[#2557d6]">{active}</div><h2 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Your business at a glance</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#687485]">Keep your day moving with a clear view of revenue, customers, invoices, and the work that needs your attention.</p></div><button onClick={() => setShowCustomer(true)} className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-[#2557d6] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d48b6] active:scale-[.98]"><Plus size={17}/> New customer</button></div>
         {error && <div role="alert" className="mt-6 rounded-xl border border-[#f1cccc] bg-[#fff7f7] px-4 py-3 text-sm text-[#a73f3f]">{error}. Connect Supabase and sign in to load workspace data.</div>}
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metricCards.map(({ label, value, note, icon: Icon, color }) => <div key={String(label)} className="card p-5"><div className="flex items-start justify-between"><div><div className="text-sm font-medium text-[#687485]">{label}</div><div className="metric-value mt-3 text-3xl font-semibold">{loading ? <span className="inline-block h-8 w-20 animate-pulse rounded bg-[#edf0f5]"/> : value}</div><div className="mt-2 text-xs text-[#8993a2]">{note}</div></div><div className="rounded-xl p-2.5" style={{ backgroundColor: `${color}15`, color: String(color) }}><Icon size={19}/></div></div></div>)}</section>
