@@ -5,6 +5,7 @@ export type Service = { id: string; organization_id: string; name: string; descr
 export type Expense = { id: string; organization_id: string; category_id: string | null; description: string; amount: string; expense_date: string; payment_method: string; notes: string | null; created_at: string; updated_at: string };
 export type DashboardMetrics = { revenue: string; expenses: string; profit: string; customer_count: number; outstanding: string; period_start: string; period_end: string };
 export type ReportSummary = { period_start: string; period_end: string; revenue: string; expenses: string; profit: string; invoice_status: Array<{ status: string; count: number }>; customer_revenue: Array<{ customer: string; revenue: string }> };
+export type Notification = { id: string; organization_id: string; user_id: string | null; type: string; title: string; message: string; read: boolean; created_at: string };
 type ApiError = { detail?: string };
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -25,5 +26,6 @@ export function createApi(accessToken?: string) {
     expenses: { list: () => request<Expense[]>("/expenses") },
     reports: { summary: (start?: string, end?: string) => request<ReportSummary>(`/reports/summary${start && end ? `?start=${start}&end=${end}` : ""}`) },
     dashboard: { metrics: (start?: string, end?: string) => request<DashboardMetrics>(`/dashboard/metrics${start && end ? `?start=${start}&end=${end}` : ""}`) },
+    notifications: { list: () => request<Notification[]>("/notifications"), markRead: (notificationId: string) => request<Notification>(`/notifications/${notificationId}/read`, { method: "POST" }) },
   };
 }
