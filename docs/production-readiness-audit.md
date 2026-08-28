@@ -2,35 +2,36 @@
 
 **Audit scope:** Security, Clean Architecture, authentication, authorization, multi-tenancy, RLS, storage, financial correctness, API behavior, frontend integration, mobile considerations, deployment configuration, dependency safety, and CI.
 
-**Repository:** [Itz-Rafin/bizpilot](https://github.com/Itz-Rafin/bizpilot)  
-**Supabase project:** `cmrjhjtpdtcoduximxkg`  
-**Audit date:** 26 August 2026
+**Repository:** [BizPilot](https://github.com/Itz-Rafin/bizpilot)  
+**Audit date:** 28 August 2026
 
 ## Executive conclusion
 
-The audit found several real correctness and security issues in the initial implementation. They were fixed in the repository and, where applicable, in the selected Supabase project. The current code is materially safer and better aligned with Clean/Hexagonal Architecture, but this audit does **not** claim production certification: Docker could not be built because the sandbox has no Docker executable, and authenticated end-to-end testing against real Supabase accounts was intentionally not performed to avoid creating or mutating real user data.
+The audit found several real correctness and security issues in the initial implementation. They were fixed in the repository and, where applicable, in the connected Supabase project. The current code is materially safer and better aligned with Clean/Hexagonal Architecture, but this audit does **not** claim production certification: Docker image builds and fully authenticated live end-to-end testing still require an environment with configured credentials and infrastructure.
 
 ## Findings and fixes
 
 | Area | Finding | Resolution | Status |
 |---|---|---|---|
 | JWT validation | Audience validation was disabled and issuer was not checked. | JWT verification now requires the configured audience and the selected project issuer. | Fixed |
-| Tenant selection | Users with multiple memberships were silently bound to the first organization. | `X-Organization-ID` is now required for multi-organization users and membership is validated server-side. | Fixed |
+| Tenant selection | Users with multiple memberships were silently bound to the first organization. | Active organization is persisted and membership is validated server-side. | Fixed |
 | Invoice lifecycle | Draft update/delete methods were attached to the dashboard repository, while routes instantiated the invoice repository. | Methods were moved to `SqlAlchemyInvoiceRepository` and covered by tests. | Fixed |
-| Payment rules | Payments could be attempted against cancelled invoices, and balance checks were vulnerable to concurrent read-then-write races. | Locked invoice reads, cancelled/paid guards, and balance calculation now run through the application use case. | Fixed in code; live concurrency test remains environment-limited |
+| Payment rules | Payments could be attempted against cancelled/paid invoices, and balance checks needed concurrency protection. | Locked invoice reads, status guards, and transactional balance calculation now run through the application use case. | Fixed in code; live concurrency test remains environment-limited |
 | Invoice status | Send/cancel routes could bypass domain transition rules. | Application-layer status guards now reject invalid transitions. | Fixed |
-| Storage tenancy | Storage policies used the user ID as the first path segment, which did not model organization-scoped assets for multi-organization users. | Added `is_member_text` security-definer function and organization-rooted paths: `<organization_id>/<asset>`. | Fixed in Supabase and migration `0005` |
+| Storage tenancy | Storage policies did not model organization-scoped assets correctly for multi-organization users. | Organization-rooted paths and membership checks were added. | Fixed in Supabase and migrations |
 | Storage uploads | Adapter accepted arbitrary filenames, MIME claims, sizes, and overwrite behavior. | Added filename/path validation, 5 MB limit, allowlisted types, magic-byte checks, and unique non-overwriting paths. | Fixed |
-| RLS relationships | Some policies checked only submitted organization IDs and did not validate customer, product, service, category, invoice, and payment relationships. | Added relationship-integrity policies and owner/admin ownership protections in migration `0006`. | Fixed in Supabase and migration `0006` |
+| RLS relationships | Some policies checked submitted organization IDs without validating related tenant ownership. | Added relationship-integrity policies and ownership protections. | Fixed |
 | Frontend identity | Dashboard rendered placeholder organization and user names. | Added `/me` context endpoint and authenticated workspace/profile rendering. | Fixed |
-| Frontend logout | Dashboard lacked an actual logout action. | Profile control now signs out through Supabase Auth and redirects to `/login`. | Fixed |
-| Dependency security | `npm audit` reported vulnerable PostCSS through the Next.js dependency tree. | Added patched PostCSS version and npm override; `npm audit --omit=dev` now reports zero vulnerabilities. | Fixed |
-| Container security | Images ran as root by default. | Backend runs as a system `app` user; frontend runs as the image’s non-root `node` user. | Fixed; image build unavailable in sandbox |
+| Frontend logout | Dashboard lacked an actual logout action. | Profile control signs out through Supabase Auth and redirects to `/login`. | Fixed |
+| Dependency security | `npm audit` reported a vulnerable PostCSS dependency path. | Added a patched PostCSS version and npm override. | Fixed; high-severity audit is green |
+| Container security | Images ran as root by default. | Backend runs as a system `app` user; frontend uses the image's non-root `node` user. | Fixed; image build remains environment-limited |
 | Security headers | Next.js had no explicit response security headers. | Added `nosniff`, `DENY` framing, strict referrer policy, and restrictive permissions policy. | Fixed |
+| Financial display | Dashboard outstanding value ignored partial payments. | Outstanding now uses invoice total minus organization-scoped recorded payments. | Fixed |
+| Payment UI | Payment form allowed selections that could never succeed and hid remaining balance. | Only payable invoices are shown and remaining balance is displayed before submission. | Fixed |
 
 ## Clean Architecture audit
 
-The dependency direction is now enforced as follows:
+The dependency direction is enforced as follows:
 
 ```text
 Presentation → Application → Domain
@@ -39,64 +40,53 @@ Presentation → Application → Domain
 
 The domain layer contains framework-independent billing entities, value calculations, status transitions, and payment invariants. The application layer contains customer, billing, catalog, and expense orchestration. The infrastructure layer contains SQLAlchemy repositories, JWT verification, Supabase Storage, PDF rendering, and database session concerns. FastAPI routes are responsible for HTTP translation, dependency injection, and response schemas rather than owning financial rules.
 
-The architecture test scans the domain layer for forbidden imports, including FastAPI, SQLAlchemy, Supabase, HTTP clients, and infrastructure modules. It passes.
+The architecture test scans the domain layer for forbidden imports, including FastAPI, SQLAlchemy, Supabase, HTTP clients, and infrastructure modules.
 
 ## Authentication and authorization audit
 
-Unauthenticated access to protected API routes returned `401`. Malformed tokens, expired tokens, wrong-audience tokens, wrong-issuer tokens, and invalid subject UUIDs are rejected by the JWT verifier. Frontend middleware redirected an unauthenticated dashboard request to `/login` during browser smoke testing.
+Protected API routes require authentication. Malformed tokens, expired tokens, wrong-audience tokens, wrong-issuer tokens, and invalid subject UUIDs are rejected by the JWT verifier.
 
-The backend derives the authenticated user from the verified JWT and derives the organization from a validated membership query. Client-supplied organization IDs are not trusted as tenant authority. When multiple memberships exist, an explicit `X-Organization-ID` header is required and must match a membership of the authenticated user.
+The backend derives the authenticated user from the verified JWT and derives the organization from validated membership and active-organization state. Client-supplied organization IDs are not trusted as tenant authority.
 
-Application-level red-team tests simulate organization A and organization B and verify that cross-organization invoice creation and payment attempts are rejected. Real Supabase account creation was not performed because the audit was designed not to create or alter real users.
+Application-level tests simulate organization A and organization B and verify that cross-organization invoice creation and payment attempts are rejected. Live two-user Supabase red-team testing remains a separate environment task.
 
 ## Supabase database and RLS audit
 
-The selected project began with an empty `public` table inventory. BizPilot objects are isolated in the `bizpilot` schema. The following migrations are recorded in the selected project:
+BizPilot objects are isolated in the application schema. RLS policies cover customers, products, services, invoices, invoice items, payments, expenses, notifications, activity logs, profiles, organizations, memberships, and storage objects.
 
-| Migration | Purpose |
-|---|---|
-| `bizpilot_foundation` | Normalized business tables, constraints, helper functions, indexes, and baseline RLS |
-| `bizpilot_security_hardening` | Removes unnecessary direct table privileges from `anon` and `authenticated` |
-| `bizpilot_storage` | Creates the private `bizpilot-assets` bucket and initial policies |
-| `bizpilot_performance_hardening` | Adds justified foreign-key indexes and improves RLS planning |
-| `bizpilot_storage_tenant_fix` | Changes storage authorization to organization membership and safe path handling |
-| `bizpilot_rls_relationship_integrity` | Validates logical tenant relationships and protects ownership operations |
+The remaining Supabase platform-level warning is the PostgreSQL patch-level upgrade, which must be performed through Supabase platform controls. Free-plan Auth limitations may also leave the leaked-password protection advisor warning enabled; that warning does not mean the application is storing plaintext passwords.
 
-Read-only policy verification confirmed RLS policies for customers, products, services, invoices, invoice items, payments, expenses, notifications, activity logs, profiles, organizations, memberships, and storage objects. Supabase security advisors report no remaining GraphQL table-exposure lints. The remaining security warning is platform-level: Postgres `17.4.1.069` has patches available and should be upgraded through Supabase’s platform controls. See [Supabase database upgrades](https://supabase.com/docs/guides/platform/upgrading).
-
-The performance advisor reports informational unused-index notices because the new project has no production workload yet. The indexes remain because they cover documented tenant, date, foreign-key, and reporting query patterns; they were not removed merely to silence an advisor.
+Performance-advisor unused-index notices are informational for a project without production workload. The indexes remain because they cover documented tenant, date, foreign-key, and reporting query patterns.
 
 ## Financial and PDF correctness
 
 The domain uses `Decimal` with cent quantization and `ROUND_HALF_UP`. Tests cover decimal prices, multiple line items, tax, discounts, zero and negative quantities, negative prices, invalid dates, tax boundaries, overpayment, partial payment, exact payment, and cancelled/paid payment guards. The backend calculates invoice totals authoritatively; frontend values are not trusted.
 
-Invoice PDFs are rendered by the open-source ReportLab adapter and are generated from tenant-scoped invoice records. The route first loads the invoice through the organization-scoped repository, preventing a caller from selecting another organization’s invoice by ID.
+Invoice PDFs are rendered by the ReportLab adapter and are generated from tenant-scoped invoice records.
 
 ## Test and build results
 
-The expanded backend suite contains **33 passing tests** covering domain rules, authentication, API smoke behavior, architecture boundaries, storage safety, and simulated cross-tenant authorization. Ruff checks and Python compilation pass. The only reported test warning is Starlette’s deprecation warning about the installed `httpx` integration.
+The current GitHub Actions pipeline is expected to validate backend Ruff checks, backend tests, frontend linting, TypeScript, high-severity npm audit, and the Next.js production build on each push.
 
-The frontend passes TypeScript validation, Next.js production build, and `npm audit --omit=dev` with zero vulnerabilities. The built routes include `/`, `/login`, `/onboarding`, and dynamic workspace sections.
+The latest validated CI run before this packaging-only update had both backend and frontend jobs green. A subsequent documentation/configuration-only change should trigger the same pipeline again.
 
-The public login page rendered successfully in a browser smoke test. An unauthenticated request to `/` redirected to `/login`. No real credentials were entered, and no account-creation form was submitted.
-
-Docker Compose syntax and image builds could not be executed because the sandbox does not contain a `docker` executable. The Dockerfiles were statically reviewed and hardened for non-root execution.
+Docker Compose syntax and image builds remain environment-dependent.
 
 ## Residual limitations
 
 The following are genuine unresolved or environment-limited items:
 
-1. The Supabase control-plane display name could not be renamed because the enabled management integration exposes no project-rename operation. The selected project ID is documented as authoritative.
-2. The selected Supabase Postgres version needs a platform upgrade through the Supabase dashboard.
-3. A live two-user/two-organization red-team run against Supabase Auth and RLS was not performed because it would require creating or mutating real accounts. Application-level simulation and read-only policy verification were performed instead.
-4. Live payment concurrency and storage download/upload tests require a configured database connection and authenticated test identities. The code includes transactional invoice locking and storage policy fixes, but these specific live tests remain to be run in a dedicated non-production Supabase branch or test project.
-5. Docker build verification requires a machine with Docker or an equivalent OCI builder.
-6. Full authenticated browser workflows—including signup, onboarding against live Supabase, invoice creation, payment recording, settings changes, and logout—require test credentials and a running configured backend. Public-route and unauthenticated redirect smoke tests were completed.
+1. The Supabase Postgres version needs a platform upgrade through the Supabase dashboard.
+2. Leaked-password protection is unavailable on the current Auth plan and therefore may remain as an advisor warning.
+3. Live two-user/two-organization red-team testing against real Supabase Auth/RLS still requires dedicated test identities.
+4. Live payment concurrency and storage upload/download tests require configured infrastructure and authenticated test identities.
+5. Docker image-build verification requires a machine with Docker or an equivalent OCI builder.
+6. Full authenticated browser workflows require test credentials and a running configured backend.
 
-## Audit commits
+## Repository safety
 
-The audit fixes are staged for a dedicated commit after final validation. No secrets were added to Git. Backend-only secrets remain outside `NEXT_PUBLIC_*` variables.
+Reusable environment examples contain placeholders rather than the owner's Supabase project details. Backend secrets are never placed in `NEXT_PUBLIC_*` variables. The repository does not grant a public open-source license; commercial redistribution or white-label use requires a separate written license.
 
-## References
+## Audit status
 
-[1]: https://supabase.com/docs/guides/platform/upgrading "Supabase database upgrades"
+The application and CI hardening work is complete for the current development milestone. Remaining items above are deployment/platform validation rather than known application defects.
