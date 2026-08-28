@@ -1,7 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.database.models import ExpenseModel, ProductModel, ServiceModel
+from app.infrastructure.database.models import (
+    ExpenseCategoryModel,
+    ExpenseModel,
+    ProductModel,
+    ServiceModel,
+)
 
 
 class SqlAlchemyCatalogRepository:
@@ -53,6 +58,16 @@ class SqlAlchemyExpenseRepository:
         ).all()
 
     def create_expense(self, organization_id, values):
+        category_id = values.get("category_id")
+        if category_id is not None:
+            category = self.session.scalar(
+                select(ExpenseCategoryModel).where(
+                    ExpenseCategoryModel.id == category_id,
+                    ExpenseCategoryModel.organization_id == organization_id,
+                )
+            )
+            if category is None:
+                raise ValueError("Expense category does not belong to the current organization")
         item = ExpenseModel(organization_id=organization_id, **values)
         self.session.add(item)
         self.session.commit()
@@ -70,6 +85,16 @@ class SqlAlchemyExpenseRepository:
         item = self.get_expense(organization_id, expense_id)
         if item is None:
             return None
+        category_id = values.get("category_id")
+        if category_id is not None:
+            category = self.session.scalar(
+                select(ExpenseCategoryModel).where(
+                    ExpenseCategoryModel.id == category_id,
+                    ExpenseCategoryModel.organization_id == organization_id,
+                )
+            )
+            if category is None:
+                raise ValueError("Expense category does not belong to the current organization")
         for key, value in values.items():
             setattr(item, key, value)
         self.session.commit()
