@@ -9,9 +9,6 @@ export const metadata: Metadata = {
   description:
     "A focused workspace for customers, invoices, payments, expenses, and business performance.",
   applicationName: "BizPilot",
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
