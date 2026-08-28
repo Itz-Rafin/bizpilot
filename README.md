@@ -170,7 +170,9 @@ For a production deployment, set explicit CORS origins, configure Supabase Auth 
 
 ## Source code license
 
-This repository is distributed under the MIT License. Third-party packages keep their own licenses.
+This repository does not grant a public open-source license. Copyright and all rights are reserved by the repository owner unless a separate written license is provided to a buyer. Third-party packages keep their own licenses.
+
+For commercial use, redistribution, resale, or white-label deployment, obtain an appropriate license from the seller.
 
 ## Status
 
