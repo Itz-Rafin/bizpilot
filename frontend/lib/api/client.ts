@@ -8,6 +8,7 @@ export type Payment = { id: string; organization_id: string; invoice_id: string;
 export type DashboardMetrics = { revenue: string; expenses: string; profit: string; customer_count: number; outstanding: string; period_start: string; period_end: string };
 export type ReportSummary = { period_start: string; period_end: string; revenue: string; expenses: string; profit: string; invoice_status: Array<{ status: string; count: number }>; customer_revenue: Array<{ customer: string; revenue: string }> };
 export type Notification = { id: string; organization_id: string; user_id: string | null; type: string; title: string; message: string; read: boolean; created_at: string };
+export type OrganizationSettings = { id: string; name: string; email: string | null; phone: string | null; address: string | null; business_type: string | null; currency: string; timezone: string; created_at: string; updated_at: string };
 type ApiError = { detail?: string };
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -53,6 +54,9 @@ export function createApi(accessToken?: string) {
     workspace: {
       me: () => request<{ organization: { id: string; name: string; currency: string; timezone: string } | null; profile: { full_name: string | null } | null; role: string | null; active_organization_id: string | null; organizations: Array<{ id: string; name: string; role: string }> }>("/me"),
       setActive: (organization_id: string) => request<{ active_organization_id: string }>("/organizations/active", { method: "POST", body: JSON.stringify({ organization_id }) }),
+      getSettings: () => request<OrganizationSettings>("/settings/organization"),
+      updateSettings: (payload: { name: string; email?: string; phone?: string; address?: string; business_type?: string; currency: string; timezone: string }) =>
+        request<OrganizationSettings>("/settings/organization", { method: "PATCH", body: JSON.stringify(payload) }),
     },
     customers: {
       list: (search = "") => request<Customer[]>(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
