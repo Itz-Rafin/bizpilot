@@ -56,7 +56,7 @@ def sql_for(statement):
 
 def test_repository_queries_are_organization_scoped():
     db = RecordingSession()
-    SqlAlchemyCustomerRepository(db).list(ORG_A)
+    SqlAlchemyCustomerRepository(db).list(ORG_A, "", 0, 50)
     SqlAlchemyInvoiceRepository(db).list(ORG_A)
     SqlAlchemyPaymentRepository(db).list_for_invoice(ORG_A, UUID(int=3))
     SqlAlchemyCatalogRepository(db).list_products(ORG_A)
