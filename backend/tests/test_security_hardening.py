@@ -1,14 +1,10 @@
 from datetime import date, datetime
-from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
 
-from app.application.use_cases.billing import BillingUseCases
-from app.domain.entities.billing import Payment, PaymentMethod
-from app.domain.ports.repositories import TenantContext
 from app.infrastructure.database.operations_repositories import (
     SqlAlchemyCatalogRepository,
     SqlAlchemyExpenseRepository,
@@ -19,9 +15,7 @@ from app.infrastructure.database.repositories import (
     SqlAlchemyInvoiceRepository,
     SqlAlchemyPaymentRepository,
 )
-from app.presentation.api.v1.supporting import set_active_organization
-from app.presentation.dependencies.auth import AuthenticatedUser, Tenant, get_tenant, require_roles
-from app.presentation.schemas.api import ActiveOrganizationRequest
+from app.presentation.dependencies.auth import AuthenticatedUser, Tenant, get_tenant
 
 ORG_A = UUID("00000000-0000-0000-0000-000000000001")
 ORG_B = UUID("00000000-0000-0000-0000-000000000002")
@@ -34,35 +28,6 @@ class EmptyResult:
 
     def all(self):
         return []
-
-
-class AtomicInvoiceRepo:
-    def __init__(self, invoice):
-        self.invoice = invoice
-        self.status = None
-
-    def lock_for_payment(self, organization_id, invoice_id):
-        return self.invoice if organization_id == ORG_A else None
-
-    def save_status(self, organization_id, invoice_id, status, *, commit=True):
-        self.status = status
-        return self.invoice
-
-
-class AtomicPaymentRepo:
-    def __init__(self):
-        self.saved = []
-        self.committed = False
-
-    def list_for_invoice(self, organization_id, invoice_id):
-        return []
-
-    def create(self, payment, *, commit=True):
-        self.saved.append(payment)
-        return payment
-
-    def commit(self):
-        self.committed = True
 
 
 class RecordingSession:
