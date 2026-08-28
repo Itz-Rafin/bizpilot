@@ -30,6 +30,18 @@ export function createApi(accessToken?: string) {
     return response.json() as Promise<T>;
   }
 
+  async function download(path: string): Promise<Blob> {
+    const response = await fetch(`${API_URL}${path}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiError;
+      throw new Error(body.detail ?? "Unable to download the file. Please try again.");
+    }
+    return response.blob();
+  }
+
   return {
     auth: {
       bootstrap: (payload: { business_name: string; business_type: string; currency: string; timezone: string }) =>
@@ -62,6 +74,7 @@ export function createApi(accessToken?: string) {
       send: (invoiceId: string) => request<Invoice>(`/invoices/${invoiceId}/send`, { method: "POST" }),
       cancel: (invoiceId: string) => request<Invoice>(`/invoices/${invoiceId}/cancel`, { method: "POST" }),
       removeDraft: (invoiceId: string) => request<void>(`/invoices/${invoiceId}`, { method: "DELETE" }),
+      downloadPdf: (invoiceId: string) => download(`/invoices/${invoiceId}/pdf`),
     },
     payments: {
       list: () => request<Payment[]>("/payments"),
