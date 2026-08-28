@@ -203,6 +203,37 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
             return None
         if model.status != "draft":
             raise ValueError("Only draft invoices can be edited")
+
+        organization_id = UUID(organization_id)
+        customer = self.session.scalar(
+            select(CustomerModel).where(
+                CustomerModel.id == UUID(invoice.customer_id),
+                CustomerModel.organization_id == organization_id,
+            )
+        )
+        if customer is None:
+            raise ValueError("Customer does not belong to the current organization")
+
+        for item in invoice.items:
+            if item.product_id:
+                product = self.session.scalar(
+                    select(ProductModel).where(
+                        ProductModel.id == UUID(item.product_id),
+                        ProductModel.organization_id == organization_id,
+                    )
+                )
+                if product is None:
+                    raise ValueError("Product does not belong to the current organization")
+            if item.service_id:
+                service = self.session.scalar(
+                    select(ServiceModel).where(
+                        ServiceModel.id == UUID(item.service_id),
+                        ServiceModel.organization_id == organization_id,
+                    )
+                )
+                if service is None:
+                    raise ValueError("Service does not belong to the current organization")
+
         model.customer_id = UUID(invoice.customer_id)
         model.issue_date = invoice.issue_date
         model.due_date = invoice.due_date
@@ -316,11 +347,21 @@ class SqlAlchemyDashboardRepository(DashboardRepository):
             )
             or 0
         )
+        paid_for_invoice = (
+            select(func.coalesce(func.sum(PaymentModel.amount), 0))
+            .where(
+                PaymentModel.organization_id == organization_id,
+                PaymentModel.invoice_id == InvoiceModel.id,
+            )
+            .correlate(InvoiceModel)
+            .scalar_subquery()
+        )
         outstanding = (
             self.session.scalar(
-                select(func.coalesce(func.sum(InvoiceModel.total), 0)).where(
+                select(func.coalesce(func.sum(InvoiceModel.total - paid_for_invoice), 0)).where(
                     InvoiceModel.organization_id == organization_id,
                     InvoiceModel.status.in_(["sent", "overdue"]),
+                    InvoiceModel.total > paid_for_invoice,
                 )
             )
             or 0
