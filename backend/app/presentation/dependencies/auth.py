@@ -52,29 +52,45 @@ def get_tenant(
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Tenant:
+    profile = db.get(ProfileModel, user.user_id)
+    active_id = profile.active_organization_id if profile else None
+
+    if active_id is not None:
+        membership = db.scalar(
+            select(OrganizationMemberModel).where(
+                OrganizationMemberModel.user_id == user.user_id,
+                OrganizationMemberModel.organization_id == active_id,
+            )
+        )
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Active organization access is no longer available",
+            )
+        return Tenant(
+            user_id=user.user_id, organization_id=membership.organization_id, role=membership.role
+        )
+
     memberships = db.scalars(
         select(OrganizationMemberModel)
         .where(OrganizationMemberModel.user_id == user.user_id)
         .order_by(OrganizationMemberModel.created_at)
-        .limit(20)
+        .limit(2)
     ).all()
     if not memberships:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="No organization membership found"
         )
-    profile = db.get(ProfileModel, user.user_id)
-    active_id = profile.active_organization_id if profile else None
-    membership = next((item for item in memberships if item.organization_id == active_id), None)
-    if membership is None and len(memberships) == 1:
-        membership = memberships[0]
-        if profile is not None:
-            profile.active_organization_id = membership.organization_id
-            db.commit()
-    elif membership is None:
+    if len(memberships) > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Active organization is not set; select one before continuing",
         )
+
+    membership = memberships[0]
+    if profile is not None:
+        profile.active_organization_id = membership.organization_id
+        db.commit()
     return Tenant(
         user_id=user.user_id, organization_id=membership.organization_id, role=membership.role
     )
