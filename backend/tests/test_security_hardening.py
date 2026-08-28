@@ -59,7 +59,7 @@ def test_repository_queries_are_organization_scoped():
     SqlAlchemyCustomerRepository(db).list(ORG_A, "", 0, 50)
     SqlAlchemyInvoiceRepository(db).list(ORG_A, None, "", 0, 50)
     SqlAlchemyPaymentRepository(db).list_for_invoice(ORG_A, UUID(int=3))
-    SqlAlchemyCatalogRepository(db).list_products(ORG_A)
+    SqlAlchemyCatalogRepository(db).list_products(ORG_A, "")
     SqlAlchemyExpenseRepository(db).list(ORG_A)
     assert db.statements
     assert all("organization_id" in sql_for(statement) for statement in db.statements)
