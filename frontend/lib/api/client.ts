@@ -12,7 +12,7 @@ export type OrganizationSettings = { id: string; name: string; email: string | n
 type ApiError = { detail?: string };
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
-export function createApi(accessToken?: string) {
+export function createApi(accessToken?: string | null) {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       ...init,
