@@ -6,26 +6,108 @@ export type Expense = { id: string; organization_id: string; category_id: string
 export type DashboardMetrics = { revenue: string; expenses: string; profit: string; customer_count: number; outstanding: string; period_start: string; period_end: string };
 export type ReportSummary = { period_start: string; period_end: string; revenue: string; expenses: string; profit: string; invoice_status: Array<{ status: string; count: number }>; customer_revenue: Array<{ customer: string; revenue: string }> };
 export type Notification = { id: string; organization_id: string; user_id: string | null; type: string; title: string; message: string; read: boolean; created_at: string };
+
 type ApiError = { detail?: string };
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export function createApi(accessToken?: string) {
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${API_URL}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init?.headers ?? {}) }, cache: "no-store" });
-    if (!response.ok) { const body = (await response.json().catch(() => ({}))) as ApiError; throw new Error(body.detail ?? "Something went wrong. Please try again."); }
+    const response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiError;
+      throw new Error(body.detail ?? "Something went wrong. Please try again.");
+    }
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
+
   return {
-    auth: { bootstrap: (payload: { business_name: string; business_type: string; currency: string; timezone: string }) => request<{ organization_id: string; created: boolean }>("/auth/bootstrap", { method: "POST", body: JSON.stringify(payload) }) },
-    workspace: { me: () => request<{ organization: { id: string; name: string; currency: string; timezone: string } | null; profile: { full_name: string | null } | null; role: string | null; active_organization_id: string | null; organizations: Array<{ id: string; name: string; role: string }> }>("/me"), setActive: (organization_id: string) => request<{ active_organization_id: string }>("/organizations/active", { method: "POST", body: JSON.stringify({ organization_id }) }) },
-    customers: { list: (search = "") => request<Customer[]>(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`), create: (payload: { name: string; email?: string; phone?: string; company?: string; address?: string; notes?: string }) => request<Customer>("/customers", { method: "POST", body: JSON.stringify(payload) }) },
+    auth: {
+      bootstrap: (payload: { business_name: string; business_type: string; currency: string; timezone: string }) =>
+        request<{ organization_id: string; created: boolean }>("/auth/bootstrap", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+    },
+    workspace: {
+      me: () =>
+        request<{
+          organization: { id: string; name: string; currency: string; timezone: string } | null;
+          profile: { full_name: string | null } | null;
+          role: string | null;
+          active_organization_id: string | null;
+          organizations: Array<{ id: string; name: string; role: string }>;
+        }>("/me"),
+      setActive: (organization_id: string) =>
+        request<{ active_organization_id: string }>("/organizations/active", {
+          method: "POST",
+          body: JSON.stringify({ organization_id }),
+        }),
+    },
+    customers: {
+      list: (search = "") =>
+        request<Customer[]>(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+      create: (payload: { name: string; email?: string; phone?: string; company?: string; address?: string; notes?: string }) =>
+        request<Customer>("/customers", { method: "POST", body: JSON.stringify(payload) }),
+      update: (
+        customerId: string,
+        payload: Partial<{
+          name: string;
+          email: string;
+          phone: string;
+          company: string;
+          address: string;
+          notes: string;
+        }>,
+      ) =>
+        request<Customer>(`/customers/${customerId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        }),
+      archive: (customerId: string) =>
+        request<void>(`/customers/${customerId}`, { method: "DELETE" }),
+    },
     invoices: { list: () => request<Invoice[]>("/invoices") },
-    products: { list: (search = "") => request<Product[]>(`/products${search ? `?search=${encodeURIComponent(search)}` : ""}`) },
-    services: { list: (search = "") => request<Service[]>(`/services${search ? `?search=${encodeURIComponent(search)}` : ""}`) },
+    products: {
+      list: (search = "") =>
+        request<Product[]>(`/products${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+      create: (payload: {
+        name: string;
+        sku?: string;
+        description?: string;
+        price: string;
+        cost?: string;
+        quantity?: string;
+        low_stock_threshold?: string;
+      }) => request<Product>("/products", { method: "POST", body: JSON.stringify(payload) }),
+    },
+    services: {
+      list: (search = "") =>
+        request<Service[]>(`/services${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+      create: (payload: { name: string; description?: string; price: string; duration_minutes?: number }) =>
+        request<Service>("/services", { method: "POST", body: JSON.stringify(payload) }),
+    },
     expenses: { list: () => request<Expense[]>("/expenses") },
-    reports: { summary: (start?: string, end?: string) => request<ReportSummary>(`/reports/summary${start && end ? `?start=${start}&end=${end}` : ""}`) },
-    dashboard: { metrics: (start?: string, end?: string) => request<DashboardMetrics>(`/dashboard/metrics${start && end ? `?start=${start}&end=${end}` : ""}`) },
-    notifications: { list: () => request<Notification[]>("/notifications"), markRead: (notificationId: string) => request<Notification>(`/notifications/${notificationId}/read`, { method: "POST" }) },
+    reports: {
+      summary: (start?: string, end?: string) =>
+        request<ReportSummary>(`/reports/summary${start && end ? `?start=${start}&end=${end}` : ""}`),
+    },
+    dashboard: {
+      metrics: (start?: string, end?: string) =>
+        request<DashboardMetrics>(`/dashboard/metrics${start && end ? `?start=${start}&end=${end}` : ""}`),
+    },
+    notifications: {
+      list: () => request<Notification[]>("/notifications"),
+      markRead: (notificationId: string) =>
+        request<Notification>(`/notifications/${notificationId}/read`, { method: "POST" }),
+    },
   };
 }
