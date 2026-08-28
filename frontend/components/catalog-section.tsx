@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Package, Pencil, Plus, Archive, X, Wrench } from "lucide-react";
 import { createApi, type Product, type Service } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
@@ -31,8 +31,25 @@ export default function CatalogSection({ kind }: Props) {
   const Icon = productMode ? Package : Wrench;
   const visible = useMemo(() => items.filter((item) => item.name.toLowerCase().includes(query.trim().toLowerCase())), [items, query]);
 
-  async function load() { try { const api = await getApi(); const [itemsData, workspace] = await Promise.all([productMode ? api.products.list() : api.services.list(), api.workspace.me()]); setItems(itemsData); setCurrency(workspace.organization?.currency ?? "USD"); } catch (cause) { setError(cause instanceof Error ? cause.message : `Unable to load ${title.toLowerCase()}`); } finally { setLoading(false); } }
-  useEffect(() => { load(); }, [kind]);
+  const load = useCallback(async () => {
+    try {
+      const api = await getApi();
+      const [itemsData, workspace] = await Promise.all([
+        productMode ? api.products.list() : api.services.list(),
+        api.workspace.me(),
+      ]);
+      setItems(itemsData);
+      setCurrency(workspace.organization?.currency ?? "USD");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : `Unable to load ${title.toLowerCase()}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [productMode, title]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function openCreate() { setEditing(null); setForm(empty); setError(null); setOpen(true); }
   function openEdit(item: Product | Service) { setEditing(item); setForm({ name: item.name, description: item.description ?? "", sku: "sku" in item ? item.sku ?? "" : "", price: Number(item.price), cost: "cost" in item ? Number(item.cost) : 0, quantity: "quantity" in item ? Number(item.quantity) : 0, low: "low_stock_threshold" in item ? Number(item.low_stock_threshold) : 0, duration: "duration_minutes" in item && item.duration_minutes ? item.duration_minutes : 60 }); setOpen(true); }
