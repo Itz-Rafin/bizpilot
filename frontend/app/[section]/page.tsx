@@ -44,13 +44,8 @@ function RemainingSection({ section }: { section: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(section === "reports" || section === "settings");
   const [saving, setSaving] = useState(false);
-  const canEditSettings = section === "settings" && !!settings && ["owner", "admin"].includes(settingsRole(section));
-
-  function settingsRole(currentSection: string) {
-    return currentSection === "settings" ? role : null;
-  }
-
   const [role, setRole] = useState<string | null>(null);
+  const canEditSettings = section === "settings" && !!settings && ["owner", "admin"].includes(role ?? "");
 
   useEffect(() => {
     let cancelled = false;
