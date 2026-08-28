@@ -1,10 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.application.use_cases.billing import BillingUseCases
 from app.domain.entities.billing import Invoice, InvoiceItem
+from app.infrastructure.database.models import CustomerModel, ProductModel, ServiceModel
 from app.infrastructure.database.repositories import (
     SqlAlchemyInvoiceRepository,
     SqlAlchemyPaymentRepository,
@@ -19,6 +21,37 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 def use_cases(db: Session = Depends(get_db)) -> BillingUseCases:
     return BillingUseCases(SqlAlchemyInvoiceRepository(db), SqlAlchemyPaymentRepository(db))
+
+
+def validate_invoice_links(db: Session, organization_id: UUID, invoice: Invoice) -> None:
+    customer = db.scalar(
+        select(CustomerModel).where(
+            CustomerModel.id == UUID(invoice.customer_id),
+            CustomerModel.organization_id == organization_id,
+        )
+    )
+    if customer is None:
+        raise ValueError("Customer does not belong to the current organization")
+
+    for item in invoice.items:
+        if item.product_id:
+            product = db.scalar(
+                select(ProductModel).where(
+                    ProductModel.id == UUID(item.product_id),
+                    ProductModel.organization_id == organization_id,
+                )
+            )
+            if product is None:
+                raise ValueError("Product does not belong to the current organization")
+        if item.service_id:
+            service = db.scalar(
+                select(ServiceModel).where(
+                    ServiceModel.id == UUID(item.service_id),
+                    ServiceModel.organization_id == organization_id,
+                )
+            )
+            if service is None:
+                raise ValueError("Service does not belong to the current organization")
 
 
 @router.get("", response_model=list[InvoiceRead])
@@ -155,6 +188,7 @@ def update_draft_invoice(
         notes=payload.notes,
     )
     try:
+        validate_invoice_links(db, tenant.organization_id, invoice)
         return repository.update_draft(tenant.organization_id, invoice_id, invoice)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
