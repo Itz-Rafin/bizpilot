@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, FileText, Plus, Send, Trash2, X } from "lucide-react";
+import { ArrowLeft, Download, FileText, Plus, Send, Trash2, X } from "lucide-react";
 import { createApi, type Customer, type Invoice } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 
@@ -35,6 +35,7 @@ export default function InvoiceSection() {
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const visible = useMemo(() => invoices.filter((item) => {
@@ -82,6 +83,10 @@ export default function InvoiceSection() {
   async function createInvoice(event: React.FormEvent) {
     event.preventDefault();
     if (!customerId || saving || lines.some((line) => !line.description.trim() || line.quantity <= 0 || line.unit_price < 0)) return;
+    if (!issueDate || !dueDate || dueDate < issueDate) {
+      setError("Due date must be on or after the issue date.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -114,6 +119,28 @@ export default function InvoiceSection() {
     }
   }
 
+  async function downloadPdf(invoice: Invoice) {
+    if (downloading) return;
+    setDownloading(invoice.id);
+    setError(null);
+    try {
+      const api = await getApi();
+      const blob = await api.invoices.downloadPdf(invoice.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${invoice.invoice_number}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to download invoice PDF");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   async function deleteDraft(id: string) {
     if (!window.confirm("Delete this draft invoice?")) return;
     try {
@@ -140,7 +167,7 @@ export default function InvoiceSection() {
           <select className="field sm:max-w-40" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="cancelled">Cancelled</option></select>
         </div>
         <div className="card mt-4 overflow-hidden">
-          {loading ? <div className="space-y-3 p-5">{[1,2,3,4].map((item) => <div key={item} className="h-14 animate-pulse rounded-xl bg-[#f3f5f8]" />)}</div> : visible.length === 0 ? <div className="px-5 py-16 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#e9efff] text-[#2557d6]"><FileText size={20}/></div><h2 className="mt-4 font-semibold">No invoices yet</h2><p className="mt-2 text-sm text-[#8993a2]">Create your first invoice and keep your cash flow moving.</p><button className="btn-primary mt-5" onClick={openCreate}>Create invoice</button></div> : <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="border-b border-[#e7ebf0] bg-[#fbfcfe] text-xs uppercase tracking-wider text-[#8993a2]"><tr><th className="px-5 py-4">Invoice</th><th className="px-5 py-4">Date</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Total</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#eef1f5]">{visible.map((item) => <tr key={item.id} className="table-row"><td className="px-5 py-4"><div className="font-semibold">{item.invoice_number}</div><div className="text-xs text-[#8993a2]">Due {item.due_date}</div></td><td className="px-5 py-4 text-[#687485]">{item.issue_date}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${item.status === "paid" ? "bg-[#edf8f4] text-[#1c8c63]" : item.status === "cancelled" ? "bg-[#f1f3f6] text-[#687485]" : "bg-[#eef2ff] text-[#2557d6]"}`}>{item.status}</span></td><td className="px-5 py-4 text-right font-semibold">{money(item.total, currency)}</td><td className="px-5 py-4"><div className="flex justify-end gap-2">{item.status === "draft" && <><button className="btn-secondary px-3 py-2" onClick={() => updateInvoice(item.id, "send")}><Send size={14}/> Send</button><button className="rounded-lg p-2.5 text-[#a73f3f] hover:bg-[#fff7f7]" onClick={() => deleteDraft(item.id)} aria-label={`Delete ${item.invoice_number}`}><Trash2 size={16}/></button></>}{item.status === "sent" && <button className="btn-secondary px-3 py-2" onClick={() => updateInvoice(item.id, "cancel")}>Cancel</button>}</div></td></tr>)}</tbody></table></div>}
+          {loading ? <div className="space-y-3 p-5">{[1,2,3,4].map((item) => <div key={item} className="h-14 animate-pulse rounded-xl bg-[#f3f5f8]" />)}</div> : visible.length === 0 ? <div className="px-5 py-16 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#e9efff] text-[#2557d6]"><FileText size={20}/></div><h2 className="mt-4 font-semibold">No invoices yet</h2><p className="mt-2 text-sm text-[#8993a2]">Create your first invoice and keep your cash flow moving.</p><button className="btn-primary mt-5" onClick={openCreate}>Create invoice</button></div> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm"><thead className="border-b border-[#e7ebf0] bg-[#fbfcfe] text-xs uppercase tracking-wider text-[#8993a2]"><tr><th className="px-5 py-4">Invoice</th><th className="px-5 py-4">Date</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Total</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#eef1f5]">{visible.map((item) => <tr key={item.id} className="table-row"><td className="px-5 py-4"><div className="font-semibold">{item.invoice_number}</div><div className="text-xs text-[#8993a2]">Due {item.due_date}</div></td><td className="px-5 py-4 text-[#687485]">{item.issue_date}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${item.status === "paid" ? "bg-[#edf8f4] text-[#1c8c63]" : item.status === "cancelled" ? "bg-[#f1f3f6] text-[#687485]" : "bg-[#eef2ff] text-[#2557d6]"}`}>{item.status}</span></td><td className="px-5 py-4 text-right font-semibold">{money(item.total, currency)}</td><td className="px-5 py-4"><div className="flex justify-end gap-2"> <button className="btn-secondary px-3 py-2" onClick={() => downloadPdf(item)} disabled={downloading === item.id} aria-label={`Download ${item.invoice_number} PDF`}><Download size={14}/>{downloading === item.id ? "Downloading…" : "PDF"}</button>{item.status === "draft" && <><button className="btn-secondary px-3 py-2" onClick={() => updateInvoice(item.id, "send")}><Send size={14}/> Send</button><button className="rounded-lg p-2.5 text-[#a73f3f] hover:bg-[#fff7f7]" onClick={() => deleteDraft(item.id)} aria-label={`Delete ${item.invoice_number}`}><Trash2 size={16}/></button></>}{item.status === "sent" && <button className="btn-secondary px-3 py-2" onClick={() => updateInvoice(item.id, "cancel")}>Cancel</button>}</div></td></tr>)}</tbody></table></div>}
         </div>
       </div>
 
