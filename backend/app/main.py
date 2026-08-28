@@ -69,7 +69,13 @@ def health():
     return {"status": "healthy", "service": "bizpilot-api"}
 
 
-api = FastAPI(title="BizPilot v1", version="1.0.0", docs_url="/docs", redoc_url="/redoc")
+docs_enabled = settings.app_env.lower() != "production"
+api = FastAPI(
+    title="BizPilot v1",
+    version="1.0.0",
+    docs_url="/docs" if docs_enabled else None,
+    redoc_url="/redoc" if docs_enabled else None,
+)
 api.include_router(auth_router)
 api.include_router(customers_router)
 api.include_router(products_router)
