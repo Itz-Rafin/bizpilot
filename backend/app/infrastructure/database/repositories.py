@@ -88,14 +88,18 @@ class SqlAlchemyInvoiceRepository(InvoiceRepository):
             text("select pg_advisory_xact_lock(hashtextextended(:key, 0))"),
             {"key": str(organization_id)},
         )
-        current = (
-            self.session.scalar(
-                select(func.count(InvoiceModel.id)).where(
-                    InvoiceModel.organization_id == organization_id
-                )
-            )
-            or 0
+        latest = self.session.scalar(
+            select(InvoiceModel.invoice_number)
+            .where(InvoiceModel.organization_id == organization_id)
+            .order_by(InvoiceModel.invoice_number.desc())
+            .limit(1)
         )
+        current = 0
+        if latest and latest.startswith("INV-"):
+            try:
+                current = int(latest[4:])
+            except ValueError:
+                current = 0
         return f"INV-{current + 1:05d}"
 
     def create(self, invoice: Invoice):
