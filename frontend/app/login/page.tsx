@@ -82,9 +82,14 @@ export default function LoginPage() {
 
       <section className="flex items-center justify-center p-5 sm:p-8">
         <div className="w-full max-w-md">
-          <Link href="/" className="text-sm font-semibold text-[#2557d6] hover:underline">
-            ← Back to BizPilot
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/" className="text-sm font-semibold text-[#2557d6] hover:underline">
+              ← Back to BizPilot
+            </Link>
+            <Link href="/demo" className="text-sm font-semibold text-[#687485] hover:text-[#2557d6]">
+              View demo
+            </Link>
+          </div>
 
           <div className="card mt-6 bg-white p-7 sm:p-9">
             <div className="flex items-center gap-1 rounded-xl bg-[#f4f6fb] p-1 text-sm font-semibold">
