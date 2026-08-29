@@ -4,6 +4,12 @@
 
 BizPilot is a multi-tenant small-business management SaaS for customers, products, services, invoices, payments, expenses, reporting, team access, and operational visibility. The repository is split into a Next.js frontend and a FastAPI backend.
 
+## Product demo
+
+A public demo screen is available at `/demo`. It uses fictional, in-page sample data and does not write to Supabase or create an account.
+
+Use the demo to show the product flow before asking a buyer or tester to sign in. The real application remains protected behind authentication.
+
 ## Quick Start
 
 This is the normal local setup for a fresh checkout. It assumes you already have a Supabase project.
