@@ -10,6 +10,16 @@ A public demo screen is available at `/demo`. It uses fictional, in-page sample 
 
 Use the demo to show the product flow before asking a buyer or tester to sign in. The real application remains protected behind authentication.
 
+## Buyer materials
+
+The repository includes buyer-facing material under [`docs/`](docs):
+
+- [`sales-page-copy.md`](docs/sales-page-copy.md) — product positioning, package ideas, buyer FAQ, and sales copy
+- [`demo-script.md`](docs/demo-script.md) — a short walkthrough for recording a product demo
+- [`selling-source-code.md`](docs/selling-source-code.md) — source-code sales and licensing guidance
+- [`deployment-guide.md`](docs/deployment-guide.md) — deployment/setup notes
+- [`release-checklist.md`](docs/release-checklist.md) — checklist for preparing a version for sale
+
 ## Quick Start
 
 This is the normal local setup for a fresh checkout. It assumes you already have a Supabase project.
@@ -115,7 +125,7 @@ frontend/components/             reusable UI components
 frontend/lib/api/                typed API client
 frontend/lib/supabase/           browser Auth client
 supabase/migrations/             SQL schema, indexes, helper functions, RLS
-docs/                            architecture and security notes
+docs/                            architecture, deployment, security, and sales notes
 ```
 
 ## Main features
