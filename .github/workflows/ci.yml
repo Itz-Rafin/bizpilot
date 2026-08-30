@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql+psycopg://placeholder:placeholder@localhost/placeholder
-      SUPABASE_URL: https://cmrjhjtpdtcoduximxkg.supabase.co
+      SUPABASE_URL: https://your-project-ref.supabase.co
       SUPABASE_JWT_SECRET: test-only-secret
       SUPABASE_JWT_AUDIENCE: authenticated
     defaults:
