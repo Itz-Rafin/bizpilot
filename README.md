@@ -2,6 +2,8 @@
 
 > Run your entire small business from one place.
 
+**Current version: 0.1.0**
+
 BizPilot is a multi-tenant small-business management SaaS for customers, products, services, invoices, payments, expenses, reporting, team access, and operational visibility. The repository is split into a Next.js frontend and a FastAPI backend.
 
 ## Product demo
@@ -19,6 +21,11 @@ The repository includes buyer-facing material under [`docs/`](docs):
 - [`selling-source-code.md`](docs/selling-source-code.md) — source-code sales and licensing guidance
 - [`deployment-guide.md`](docs/deployment-guide.md) — deployment/setup notes
 - [`release-checklist.md`](docs/release-checklist.md) — checklist for preparing a version for sale
+- [`demo-assets.md`](docs/demo-assets.md) — recommended screenshots, demo flow, and presentation assets
+
+## Version history
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the current release history.
 
 ## Quick Start
 
