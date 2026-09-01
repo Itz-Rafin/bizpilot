@@ -35,6 +35,10 @@ class RecordingSession:
         self.statements = []
         self.commits = 0
 
+    def execute(self, statement, params=None):
+        self.statements.append(statement)
+        return EmptyResult()
+
     def scalars(self, statement):
         self.statements.append(statement)
         return EmptyResult()
@@ -45,6 +49,9 @@ class RecordingSession:
 
     def get(self, model, key):
         return None
+
+    def flush(self):
+        pass
 
     def commit(self):
         self.commits += 1
