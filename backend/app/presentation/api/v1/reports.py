@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.infrastructure.database.models import (
@@ -17,6 +17,19 @@ from app.presentation.dependencies.auth import Tenant, get_tenant
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
+def mark_overdue(db: Session, organization_id, today: date) -> None:
+    db.execute(
+        update(InvoiceModel)
+        .where(
+            InvoiceModel.organization_id == organization_id,
+            InvoiceModel.status == "sent",
+            InvoiceModel.due_date < today,
+        )
+        .values(status="overdue")
+    )
+    db.flush()
+
+
 @router.get("/summary")
 def report_summary(
     start: date | None = None,
@@ -26,6 +39,7 @@ def report_summary(
 ):
     end = end or date.today()
     start = start or end - timedelta(days=30)
+    mark_overdue(db, tenant.organization_id, end)
     revenue = db.scalar(
         select(func.coalesce(func.sum(PaymentModel.amount), 0)).where(
             PaymentModel.organization_id == tenant.organization_id,
