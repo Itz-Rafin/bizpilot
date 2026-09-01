@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.domain.entities.billing import Invoice, Payment, payment_balance, status_after_payment
+from app.domain.ports.mailer import InvoiceMailer
 from app.domain.ports.repositories import InvoiceRepository, PaymentRepository, TenantContext
 
 
@@ -9,18 +10,31 @@ from app.domain.ports.repositories import InvoiceRepository, PaymentRepository, 
 class BillingUseCases:
     invoices: InvoiceRepository
     payments: PaymentRepository
+    mailer: InvoiceMailer | None = None
 
     def create_invoice(self, tenant: TenantContext, invoice: Invoice):
         if invoice.organization_id != str(tenant.organization_id):
             raise PermissionError("Invoice organization does not match tenant")
         return self.invoices.create(invoice)
 
-    def send_invoice(self, tenant: TenantContext, invoice_id: UUID):
+    def send_invoice(
+        self,
+        tenant: TenantContext,
+        invoice_id: UUID,
+        recipient_name: str,
+        recipient_email: str,
+    ):
         invoice = self.invoices.get(tenant.organization_id, invoice_id)
         if invoice is None:
             return None
         if invoice.status not in ("draft", "sent"):
             raise ValueError("Only draft or sent invoices can be sent")
+        if not recipient_email.strip():
+            raise ValueError("Customer email is required to send an invoice")
+        if self.mailer is None:
+            raise RuntimeError("Invoice email is not configured")
+
+        self.mailer.send_invoice(invoice, recipient_name, recipient_email.strip())
         return self.invoices.save_status(tenant.organization_id, invoice_id, "sent")
 
     def cancel_invoice(self, tenant: TenantContext, invoice_id: UUID):

@@ -47,7 +47,9 @@ cp backend/.env.example backend/.env
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-Fill in the values before starting the app. Keep `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` in the backend only.
+Fill in the values before starting the app. Keep `SUPABASE_SERVICE_ROLE_KEY` and any legacy `SUPABASE_JWT_SECRET` in the backend only.
+
+If invoice email delivery is enabled, also configure the SMTP variables in `backend/.env`.
 
 ### 3. Apply the database migrations
 
@@ -64,6 +66,7 @@ The Supabase SQL migrations in [`supabase/migrations`](supabase/migrations) are 
 0008_bizpilot_rls_role_transfer_fix.sql
 0009_bizpilot_rls_initplan_fix.sql
 0010_bizpilot_function_privilege_hardening.sql
+0011_bizpilot_authenticated_rls.sql
 ```
 
 The easiest method is Supabase Dashboard → **SQL Editor**. Run each file completely, in the order above.
@@ -105,12 +108,20 @@ Use **Create an account**, sign in, and complete onboarding. The first organizat
 |---|---:|---|
 | `DATABASE_URL` | Yes | SQLAlchemy URL using `postgresql+psycopg://` |
 | `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_JWT_SECRET` | Yes | Server-side JWT secret |
+| `SUPABASE_JWT_SECRET` | No | Legacy HS256 secret. Leave empty when using asymmetric Supabase signing keys. |
 | `SUPABASE_JWT_AUDIENCE` | Yes | Normally `authenticated` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Backend-only privileged key |
+| `SUPABASE_SERVICE_ROLE_KEY` | No | Backend-only privileged key for integrations that need it |
 | `CORS_ORIGINS` | Yes | Comma-separated browser origins |
 | `LOG_LEVEL` | No | Defaults to `INFO` |
 | `STORAGE_BUCKET` | No | Defaults to `bizpilot-assets` |
+| `SMTP_HOST` | No | SMTP host for invoice delivery |
+| `SMTP_PORT` | No | Defaults to `587` |
+| `SMTP_USERNAME` | No | SMTP username |
+| `SMTP_PASSWORD` | No | SMTP password |
+| `SMTP_FROM_EMAIL` | No | Verified sender address |
+| `SMTP_USE_TLS` | No | Defaults to `true` |
+| `RATE_LIMIT_REQUESTS` | No | Requests allowed per process/window; defaults to `120` |
+| `RATE_LIMIT_WINDOW_SECONDS` | No | Rate-limit window; defaults to `60` |
 
 ### Frontend
 
@@ -139,16 +150,19 @@ docs/                            architecture, deployment, security, and sales n
 
 - Customer management
 - Product and service management
-- Invoice creation and PDF export
+- Invoice creation and branded PDF-ready export
+- Invoice email delivery with PDF attachment
 - Invoice send/cancel/delete-draft actions
 - Payment recording
-- Expense tracking
+- Expense tracking and editing
+- Automatic overdue status refresh on dashboard/report reads
 - Dashboard metrics
 - Reports
 - Multi-organization workspaces
 - Role-based access
-- Supabase RLS
+- Supabase RLS with authenticated database context
 - Authenticated API with tenant checks
+- API rate limiting and security headers
 
 ## Running tests
 
@@ -172,6 +186,8 @@ npm run typecheck
 npm run build
 ```
 
+CI runs these backend and frontend checks automatically for pushes to `main` and pull requests.
+
 ## Docker
 
 The repository includes Docker Compose for the frontend and backend. Hosted Supabase remains external.
@@ -185,11 +201,11 @@ The local validation environment used during development did not include Docker,
 
 ## Security notes
 
-BizPilot uses Supabase Auth for user identity, FastAPI for API access control, and PostgreSQL RLS as defense in depth. The backend resolves the active organization from authenticated membership and every tenant-scoped repository query is organization-bound.
+BizPilot uses Supabase Auth for user identity, FastAPI for API access control, and PostgreSQL RLS as defense in depth. The backend verifies asymmetric Supabase JWTs through the project's JWKS endpoint and falls back to HS256 only when a legacy JWT secret is explicitly configured. The tenant dependency sets the authenticated Postgres role and JWT claims before tenant-scoped SQL is executed.
 
 Do not commit real `.env` files. Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_JWT_SECRET` through any `NEXT_PUBLIC_*` variable.
 
-For a production deployment, set explicit CORS origins, configure Supabase Auth redirect/site URLs, apply all migrations once, and provide backend secrets through the hosting provider's secret manager.
+For a production deployment, set explicit CORS origins, configure Supabase Auth redirect/site URLs, apply all migrations once, configure transactional email, and provide backend secrets through the hosting provider's secret manager. The built-in rate limiter is process-local; multi-instance deployments should also use a shared gateway or distributed limiter.
 
 ## Source code license
 
@@ -199,4 +215,4 @@ For commercial use, redistribution, resale, or white-label deployment, obtain an
 
 ## Status
 
-BizPilot is an early-stage SaaS/codebase project. It is suitable as a development starting point and can be extended or deployed for commercial use. Production deployment still requires environment-specific testing and configuration.
+BizPilot is an early-stage SaaS/codebase project. The core invoicing workflow now includes actual invoice email delivery, with security and tenant-isolation hardening in place. Production deployment still requires environment-specific testing, transactional-email credentials, and a real Postgres integration test run before charging customers.

@@ -2,10 +2,12 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.application.use_cases.operations import ExpenseUseCases
 from app.domain.ports.repositories import TenantContext
+from app.infrastructure.database.models import InvoiceModel
 from app.infrastructure.database.operations_repositories import SqlAlchemyExpenseRepository
 from app.infrastructure.database.repositories import SqlAlchemyDashboardRepository
 from app.infrastructure.database.session import get_db
@@ -24,6 +26,19 @@ def tenant_context(tenant: Tenant) -> TenantContext:
     return TenantContext(
         user_id=tenant.user_id, organization_id=tenant.organization_id, role=tenant.role
     )
+
+
+def mark_overdue(db: Session, organization_id: UUID, today: date) -> None:
+    db.execute(
+        update(InvoiceModel)
+        .where(
+            InvoiceModel.organization_id == organization_id,
+            InvoiceModel.status == "sent",
+            InvoiceModel.due_date < today,
+        )
+        .values(status="overdue")
+    )
+    db.flush()
 
 
 @expenses_router.get("", response_model=list[ExpenseRead])
@@ -80,5 +95,6 @@ def get_metrics(
 ):
     end = end or date.today()
     start = start or (end - timedelta(days=30))
+    mark_overdue(db, tenant.organization_id, end)
     metrics = SqlAlchemyDashboardRepository(db).metrics(tenant.organization_id, start, end)
     return DashboardMetrics(**metrics, period_start=start, period_end=end)

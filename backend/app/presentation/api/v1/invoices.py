@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.application.use_cases.billing import BillingUseCases
+from app.core.config import get_settings
 from app.domain.entities.billing import Invoice, InvoiceItem
 from app.infrastructure.database.models import CustomerModel, ProductModel, ServiceModel
 from app.infrastructure.database.repositories import (
@@ -12,6 +13,7 @@ from app.infrastructure.database.repositories import (
     SqlAlchemyPaymentRepository,
 )
 from app.infrastructure.database.session import get_db
+from app.infrastructure.email.smtp_mailer import SmtpInvoiceMailer
 from app.infrastructure.pdf.invoice_renderer import render_invoice_pdf
 from app.presentation.dependencies.auth import Tenant, get_tenant
 from app.presentation.schemas.api import InvoiceCreate, InvoiceRead
@@ -20,7 +22,11 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
 def use_cases(db: Session = Depends(get_db)) -> BillingUseCases:
-    return BillingUseCases(SqlAlchemyInvoiceRepository(db), SqlAlchemyPaymentRepository(db))
+    return BillingUseCases(
+        SqlAlchemyInvoiceRepository(db),
+        SqlAlchemyPaymentRepository(db),
+        SmtpInvoiceMailer(get_settings()),
+    )
 
 
 def validate_invoice_links(db: Session, organization_id: UUID, invoice: Invoice) -> None:
@@ -116,14 +122,25 @@ def send_invoice(
     invoice_id: UUID,
     tenant: Tenant = Depends(get_tenant),
     cases: BillingUseCases = Depends(use_cases),
+    db: Session = Depends(get_db),
 ):
+    invoice = cases.invoices.get(tenant.organization_id, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    customer = db.scalar(
+        select(CustomerModel).where(
+            CustomerModel.organization_id == tenant.organization_id,
+            CustomerModel.id == UUID(invoice.customer_id),
+        )
+    )
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Invoice customer not found")
     try:
-        item = cases.send_invoice(tenant, invoice_id)
+        return cases.send_invoice(tenant, invoice_id, customer.name, customer.email or "")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if item is None:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    return item
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/{invoice_id}/pdf")

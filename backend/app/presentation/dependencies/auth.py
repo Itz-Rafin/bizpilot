@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -48,10 +49,23 @@ class Tenant:
     role: str
 
 
+def _set_database_auth_context(db: Session, user: AuthenticatedUser) -> None:
+    """Make the direct SQLAlchemy connection evaluate Supabase RLS as the user."""
+    claims = {"sub": str(user.user_id), "role": "authenticated", "aud": "authenticated"}
+    if user.email:
+        claims["email"] = user.email
+    db.execute(text("set local role authenticated"))
+    db.execute(
+        text("select set_config('request.jwt.claims', :claims, true)"),
+        {"claims": json.dumps(claims)},
+    )
+
+
 def get_tenant(
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Tenant:
+    _set_database_auth_context(db, user)
     profile = db.get(ProfileModel, user.user_id)
     active_id = profile.active_organization_id if profile else None
 
@@ -90,7 +104,7 @@ def get_tenant(
     membership = memberships[0]
     if profile is not None:
         profile.active_organization_id = membership.organization_id
-        db.commit()
+        db.flush()
     return Tenant(
         user_id=user.user_id, organization_id=membership.organization_id, role=membership.role
     )

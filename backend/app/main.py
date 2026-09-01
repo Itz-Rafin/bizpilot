@@ -1,5 +1,7 @@
 import logging
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from time import monotonic
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +22,7 @@ logging.basicConfig(
     level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
 logger = logging.getLogger("bizpilot")
+_rate_limit_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
 @asynccontextmanager
@@ -45,12 +48,36 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+        now = monotonic()
+        key = request.client.host if request.client else "unknown"
+        hits = _rate_limit_hits[key]
+        cutoff = now - settings.rate_limit_window_seconds
+        while hits and hits[0] <= cutoff:
+            hits.popleft()
+        if len(hits) >= settings.rate_limit_requests:
+            retry_after = max(1, int(hits[0] + settings.rate_limit_window_seconds - now))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."},
+                headers={"Retry-After": str(retry_after)},
+            )
+        hits.append(now)
+
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -69,7 +96,9 @@ def health():
     return {"status": "healthy", "service": "bizpilot-api"}
 
 
-docs_enabled = settings.app_env.lower() != "production"
+# API documentation is opt-in outside local development so a misconfigured
+# production environment does not accidentally expose the interactive docs.
+docs_enabled = settings.app_env.strip().lower() == "development"
 api = FastAPI(
     title="BizPilot v1",
     version="1.0.0",
