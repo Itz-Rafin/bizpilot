@@ -2,23 +2,18 @@ from email.message import EmailMessage
 from smtplib import SMTP, SMTP_SSL
 
 from app.core.config import Settings
-from app.domain.entities.billing import Invoice
+from app.infrastructure.pdf.invoice_renderer import render_invoice_pdf
 
 
 class SmtpInvoiceMailer:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def send_invoice(
-        self,
-        invoice: Invoice,
-        recipient_name: str,
-        recipient_email: str,
-        pdf: bytes,
-    ) -> None:
+    def send_invoice(self, invoice: object, recipient_name: str, recipient_email: str) -> None:
         if not self.settings.smtp_host or not self.settings.smtp_from_email:
             raise RuntimeError("Invoice email is not configured")
 
+        pdf = render_invoice_pdf(invoice)
         message = EmailMessage()
         message["From"] = self.settings.smtp_from_email
         message["To"] = recipient_email
